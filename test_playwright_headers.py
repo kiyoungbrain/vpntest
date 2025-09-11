@@ -126,12 +126,12 @@ def test_requests_with_real_headers(num_requests=10):
                         break
                     else:
                         print(f"요청 {i+1}: 실패 ({response.status_code}) - 브라우저 프로세스 정리 후 재시작...")
-                        # kill_existing_browsers()
+                        kill_existing_browsers()
                         headers, cookies = asyncio.run(get_real_browser_headers())
                         
                 except Exception as e:
                     print(f"요청 {i+1}: 예외 ({str(e)}) - {retry_count}번째 시도, 브라우저 프로세스 정리 후 재시작...")
-                    # kill_existing_browsers()
+                    kill_existing_browsers()
                     headers, cookies = asyncio.run(get_real_browser_headers())
     
     print(f"\n=== 결과 ===")
