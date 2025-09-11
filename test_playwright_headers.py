@@ -64,17 +64,9 @@ async def get_real_browser_headers():
                     headless=True,
                     args=[
                         '--no-sandbox',
-                        '--disable-setuid-sandbox',  # Ubuntu에서 필요
-                        '--disable-dev-shm-usage',   # Ubuntu에서 메모리 부족 방지
                         '--disable-blink-features=AutomationControlled',
                         '--disable-web-security',
-                        '--disable-features=VizDisplayCompositor',
-                        '--disable-gpu',             # Ubuntu headless에서 GPU 비활성화
-                        '--disable-extensions',      # 확장 프로그램 비활성화
-                        '--disable-plugins',         # 플러그인 비활성화
-                        '--disable-images',          # 이미지 로딩 비활성화로 성능 향상
-                        '--no-first-run',           # 첫 실행 설정 건너뛰기
-                        '--no-default-browser-check' # 기본 브라우저 확인 건너뛰기
+                        '--disable-features=VizDisplayCompositor'
                     ]
                 )
                 
@@ -134,12 +126,12 @@ def test_requests_with_real_headers(num_requests=10):
                         break
                     else:
                         print(f"요청 {i+1}: 실패 ({response.status_code}) - 브라우저 프로세스 정리 후 재시작...")
-                        kill_existing_browsers()
+                        # kill_existing_browsers()
                         headers, cookies = asyncio.run(get_real_browser_headers())
                         
                 except Exception as e:
                     print(f"요청 {i+1}: 예외 ({str(e)}) - {retry_count}번째 시도, 브라우저 프로세스 정리 후 재시작...")
-                    kill_existing_browsers()
+                    # kill_existing_browsers()
                     headers, cookies = asyncio.run(get_real_browser_headers())
     
     print(f"\n=== 결과 ===")
