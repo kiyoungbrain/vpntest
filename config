@@ -1,2 +1,46 @@
 root@115.68.178.37
 root@115.68.178.147
+
+python3.12 -m venv venv
+source venv/bin/activate
+
+Recommended Locations:
+ALIAS   COUNTRY                 LOCATION
+-----   ---------------         ------------------------------
+smart   Smart Location          Japan - Shibuya
+jpsh    Japan (JP)              Japan - Shibuya
+jpto                            Japan - Tokyo
+jpos                            Japan - Osaka
+usla1   United States (US)      USA - Los Angeles - 1
+usla2                           USA - Los Angeles - 2
+usla3                           USA - Los Angeles - 3
+ussf                            USA - San Francisco
+usse                            USA - Seattle
+usph                            USA - Phoenix
+usde                            USA - Denver
+sgju    Singapore (SG)          Singapore - Jurong
+sgcb                            Singapore - CBD
+hk1     Hong Kong (HK)          Hong Kong - 1
+hk2                             Hong Kong - 2
+kr2     South Korea (KR)        South Korea - 2
+ausy    Australia (AU)          Australia - Sydney
+aume                            Australia - Melbourne
+auwo                            Australia - Woolloomooloo
+aubr                            Australia - Brisbane
+aupe                            Australia - Perth
+auad                            Australia - Adelaide
+ukel    United Kingdom (GB)     UK - East London
+ukto                            UK - Tottenham
+ukdo                            UK - Docklands
+uklo                            UK - London
+ukmi                            UK - Midlands
+cato2   Canada (CA)             Canada - Toronto - 2
+cato                            Canada - Toronto
+nz      New Zealand (NZ)        New Zealand
+gu      Guam (GU)               Guam
+br      Brazil (BR)             Brazil
+defr3   Germany (DE)            Germany - Frankfurt - 3
+denu                            Germany - Nuremberg
+defr1                           Germany - Frankfurt - 1
+frpa2   France (FR)             France - Paris - 2
+frma                            France - Marseille

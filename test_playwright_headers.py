@@ -119,6 +119,7 @@ def test_requests_with_real_headers(num_requests=10):
                 
                 try:
                     response = session.post(GRAPHQL_URL, headers=headers, json=BODY, verify=False, timeout=2)
+                    time.sleep(.5)
                     
                     if response.status_code == 200:
                         success_count += 1
