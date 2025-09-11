@@ -16,18 +16,17 @@ GRAPHQL_URL = "https://pcmap-api.place.naver.com/graphql"
 ua = UserAgent()
 
 def kill_existing_browsers():
-    """기존 브라우저 프로세스 종료"""
+    """기존 브라우저 프로세스 종료 - Ubuntu 최적화"""
     try:
-        if os.name == 'nt':  # Windows
-            subprocess.run(['taskkill', '/f', '/im', 'chrome.exe'], 
-                         capture_output=True, check=False)
-            subprocess.run(['taskkill', '/f', '/im', 'chromium.exe'], 
-                         capture_output=True, check=False)
-        else:  # Linux/Mac
-            subprocess.run(['pkill', '-f', 'chrome'], 
-                         capture_output=True, check=False)
-            subprocess.run(['pkill', '-f', 'chromium'], 
-                         capture_output=True, check=False)
+        # Ubuntu/Linux 환경에서 브라우저 프로세스 종료
+        subprocess.run(['pkill', '-f', 'chrome'], 
+                     capture_output=True, check=False)
+        subprocess.run(['pkill', '-f', 'chromium'], 
+                     capture_output=True, check=False)
+        subprocess.run(['pkill', '-f', 'google-chrome'], 
+                     capture_output=True, check=False)
+        subprocess.run(['pkill', '-f', 'chromium-browser'], 
+                     capture_output=True, check=False)
         print("기존 브라우저 프로세스 정리 완료")
     except Exception as e:
         print(f"브라우저 프로세스 정리 중 오류: {e}")
@@ -65,9 +64,17 @@ async def get_real_browser_headers():
                     headless=True,
                     args=[
                         '--no-sandbox',
+                        '--disable-setuid-sandbox',  # Ubuntu에서 필요
+                        '--disable-dev-shm-usage',   # Ubuntu에서 메모리 부족 방지
                         '--disable-blink-features=AutomationControlled',
                         '--disable-web-security',
-                        '--disable-features=VizDisplayCompositor'
+                        '--disable-features=VizDisplayCompositor',
+                        '--disable-gpu',             # Ubuntu headless에서 GPU 비활성화
+                        '--disable-extensions',      # 확장 프로그램 비활성화
+                        '--disable-plugins',         # 플러그인 비활성화
+                        '--disable-images',          # 이미지 로딩 비활성화로 성능 향상
+                        '--no-first-run',           # 첫 실행 설정 건너뛰기
+                        '--no-default-browser-check' # 기본 브라우저 확인 건너뛰기
                     ]
                 )
                 
