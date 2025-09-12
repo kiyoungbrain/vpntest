@@ -18,6 +18,7 @@ source venv/bin/activate
 pip install playwright
 python -m playwright install-deps
 python -m playwright install
+playwirght install
 python test_playwright_headers.py
 
 ##
