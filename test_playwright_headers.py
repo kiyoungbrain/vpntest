@@ -76,7 +76,7 @@ async def get_real_browser_headers():
                 )
                 
                 page = await context.new_page()
-                await page.goto('https://map.naver.com/', timeout=2000)
+                await page.goto('https://map.naver.com/', timeout=3000)
                 
                 headers = await page.evaluate("""
                     () => ({
