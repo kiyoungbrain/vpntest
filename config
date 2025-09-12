@@ -1,8 +1,41 @@
-root@115.68.178.37
-root@115.68.178.147
+ssh root@115.68.176.238
+ssh root@115.68.178.226
+ssh root@115.68.178.11
+ssh root@115.68.177.213
+ssh root@115.68.176.241
+ssh root@115.68.177.65
 
+wjsfir1234!@#
+
+
+
+
+#
+sudo apt update
+sudo apt install python3.12 python3.12-venv
 python3.12 -m venv venv
 source venv/bin/activate
+pip install playwright
+python -m playwright install-deps
+python -m playwright install
+python test_playwright_headers.py
+
+##
+git init
+git remote add origin https://github.com/kiyoungbrain/vpntest.git
+git pull origin main
+git remote -v
+
+###
+dpkg -i expressvpn_3.83.0.2-1_amd64.deb
+
+expressvpn activate
+E6PM3D6P9XW7JLPFHEBWC2U
+
+expressvpn status
+expressvpn connect kr2
+
+
 
 Recommended Locations:
 ALIAS   COUNTRY                 LOCATION
@@ -44,3 +77,4 @@ denu                            Germany - Nuremberg
 defr1                           Germany - Frankfurt - 1
 frpa2   France (FR)             France - Paris - 2
 frma                            France - Marseille
+
