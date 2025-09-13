@@ -336,10 +336,9 @@ async def get_real_browser_headers():
             continue
 
 def test_requests_with_real_headers(num_requests=10):
-    """실제 브라우저 헤더로 requests 테스트 - 완전히 독립적인 세션으로 분산"""
+    """빠른 버전 - 헤더 풀을 미리 생성하고 재사용"""
     success_count = 0
     failure_count = 0
-    consecutive_failures = 0
     
     # 프로그램 시작 전 기존 브라우저 프로세스 정리
     print("프로그램 시작 - 기존 브라우저 프로세스 정리 중...")
@@ -349,85 +348,69 @@ def test_requests_with_real_headers(num_requests=10):
     machine_id = get_machine_id()
     print(f"머신 ID: {machine_id}")
     
-    # 각 요청마다 완전히 새로운 세션 생성
+    # 헤더 풀 미리 생성 (10개)
+    print("헤더 풀 생성 중...")
+    header_pool = []
+    for i in range(10):
+        try:
+            headers, cookies = asyncio.run(get_real_browser_headers())
+            header_pool.append((headers, cookies))
+            print(f"헤더 {i+1}/10 생성 완료")
+        except Exception as e:
+            print(f"헤더 {i+1} 생성 실패: {e}")
+    
+    if not header_pool:
+        print("헤더 풀 생성 실패!")
+        return
+    
+    print(f"헤더 풀 생성 완료: {len(header_pool)}개")
+    
+    # 빠른 요청 처리
     for i in range(num_requests):
-        retry_count = 0
-        request_success = False
+        # 랜덤한 헤더 선택
+        headers, cookies = random.choice(header_pool)
         
-        # 매 요청마다 새로운 헤더와 쿠키 생성 (완전한 분산)
-        print(f"요청 {i+1}: 새로운 세션 생성 중...")
-        headers, cookies = asyncio.run(get_real_browser_headers())
-        
-        while retry_count < 5:  # 최대 5번 재시도
-            retry_count += 1
+        with requests.Session() as session:
+            # 쿠키 설정
+            for name, value in cookies.items():
+                session.cookies.set(name, value)
             
-            with requests.Session() as session:
-                # 쿠키 설정
-                for name, value in cookies.items():
-                    session.cookies.set(name, value)
+            # 프록시 설정
+            proxy = get_random_proxy()
+            proxies = None
+            if proxy:
+                proxies = {
+                    'http': proxy,
+                    'https': proxy
+                }
+            
+            try:
+                # 매우 짧은 대기 (0.1-0.3초)
+                time.sleep(random.uniform(0.1, 0.3))
                 
-                # 프록시 설정
-                proxy = get_random_proxy()
-                proxies = None
-                if proxy:
-                    proxies = {
-                        'http': proxy,
-                        'https': proxy
-                    }
+                response = session.post(GRAPHQL_URL, headers=headers, json=BODY, verify=False, timeout=3, proxies=proxies)
                 
-                try:
-                    # 랜덤한 대기 시간 (0.5초 ~ 3초) - 더 자연스럽게
-                    sleep_time = random.uniform(0.5, 3.0)
-                    time.sleep(sleep_time)
+                if response.status_code == 200:
+                    success_count += 1
+                    print(f"요청 {i+1}: 성공 (200) - 머신: {machine_id}")
+                elif response.status_code == 429:
+                    print(f"요청 {i+1}: Rate Limited (429) - 머신: {machine_id}")
+                    # 429 에러 시 짧은 대기 후 계속
+                    time.sleep(random.uniform(0.5, 1.5))
+                else:
+                    print(f"요청 {i+1}: 실패 ({response.status_code}) - 머신: {machine_id}")
                     
-                    # 랜덤한 요청 순서 (가끔 GET 요청도 섞기)
-                    if random.random() < 0.1:  # 10% 확률로 GET 요청
-                        response = session.get('https://map.naver.com/', headers=headers, verify=False, timeout=5, proxies=proxies)
-                        time.sleep(random.uniform(0.5, 1.5))  # GET 후 대기
-                    
-                    response = session.post(GRAPHQL_URL, headers=headers, json=BODY, verify=False, timeout=8, proxies=proxies)
-                    
-                    if response.status_code == 200:
-                        success_count += 1
-                        consecutive_failures = 0
-                        request_success = True
-                        print(f"요청 {i+1}: 성공 (200) - {retry_count}번째 시도 - 머신: {machine_id}")
-                        break
-                    elif response.status_code == 429:
-                        print(f"요청 {i+1}: Rate Limited (429) - {retry_count}번째 시도 - 머신: {machine_id}")
-                        # 429 에러 시 더 긴 대기 시간
-                        time.sleep(random.uniform(5.0, 15.0))  # 더 긴 대기
-                        consecutive_failures += 1
-                        
-                        # 429 에러 시 즉시 새로운 세션 생성
-                        if retry_count < 3:
-                            print("429 에러로 인한 새 세션 생성...")
-                            headers, cookies = asyncio.run(get_real_browser_headers())
-                    else:
-                        print(f"요청 {i+1}: 실패 ({response.status_code}) - {retry_count}번째 시도 - 머신: {machine_id}")
-                        consecutive_failures += 1
-                        
-                        # 백오프 전략: 실패할수록 더 긴 대기
-                        backoff_time = min(2 ** retry_count, 60)  # 최대 60초
-                        time.sleep(random.uniform(backoff_time * 0.5, backoff_time))
-                        
-                except Exception as e:
-                    print(f"요청 {i+1}: 예외 ({str(e)}) - {retry_count}번째 시도 - 머신: {machine_id}")
-                    consecutive_failures += 1
-                    
-                    # 백오프 전략
-                    backoff_time = min(2 ** retry_count, 60)
-                    time.sleep(random.uniform(backoff_time * 0.5, backoff_time))
+            except Exception as e:
+                print(f"요청 {i+1}: 예외 ({str(e)}) - 머신: {machine_id}")
         
-        if not request_success:
-            failure_count += 1
-            print(f"요청 {i+1}: 최종 실패 - 머신: {machine_id}")
-        
-        # 요청 간 랜덤한 긴 대기 (1-10초)
-        if i < num_requests - 1:  # 마지막 요청이 아닌 경우
-            long_wait = random.uniform(1.0, 10.0)
-            print(f"요청 간 대기: {long_wait:.1f}초")
-            time.sleep(long_wait)
+        # 20번째 요청마다 헤더 풀 갱신
+        if (i + 1) % 20 == 0:
+            print(f"헤더 풀 갱신 중... ({i+1}번째 요청 후)")
+            try:
+                headers, cookies = asyncio.run(get_real_browser_headers())
+                header_pool[random.randint(0, len(header_pool)-1)] = (headers, cookies)
+            except:
+                pass
     
     print(f"\n=== 결과 (머신: {machine_id}) ===")
     print(f"총 요청: {num_requests} | 성공: {success_count} | 실패: {failure_count}")
