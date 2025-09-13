@@ -34,17 +34,28 @@ MACHINE_ID = get_machine_id()
 print(f"현재 컴퓨터 ID: {MACHINE_ID}")
 
 def kill_existing_browsers():
-    """기존 브라우저 프로세스 종료 - Ubuntu 최적화"""
+    """기존 브라우저 프로세스 종료 - Windows/Linux 호환"""
     try:
-        # Ubuntu/Linux 환경에서 브라우저 프로세스 종료
-        subprocess.run(['pkill', '-f', 'chrome'], 
-                     capture_output=True, check=False)
-        subprocess.run(['pkill', '-f', 'chromium'], 
-                     capture_output=True, check=False)
-        subprocess.run(['pkill', '-f', 'google-chrome'], 
-                     capture_output=True, check=False)
-        subprocess.run(['pkill', '-f', 'chromium-browser'], 
-                     capture_output=True, check=False)
+        import platform
+        system = platform.system().lower()
+        
+        if system == "windows":
+            # Windows 환경
+            subprocess.run(['taskkill', '/f', '/im', 'chrome.exe'], 
+                         capture_output=True, check=False)
+            subprocess.run(['taskkill', '/f', '/im', 'chromium.exe'], 
+                         capture_output=True, check=False)
+        else:
+            # Linux/Ubuntu 환경
+            subprocess.run(['pkill', '-f', 'chrome'], 
+                         capture_output=True, check=False)
+            subprocess.run(['pkill', '-f', 'chromium'], 
+                         capture_output=True, check=False)
+            subprocess.run(['pkill', '-f', 'google-chrome'], 
+                         capture_output=True, check=False)
+            subprocess.run(['pkill', '-f', 'chromium-browser'], 
+                         capture_output=True, check=False)
+        
         print("기존 브라우저 프로세스 정리 완료")
     except Exception as e:
         print(f"브라우저 프로세스 정리 중 오류: {e}")
@@ -90,6 +101,12 @@ async def get_real_browser_headers():
                 viewport_idx = hash(MACHINE_ID) % len(viewport_options)
                 selected_viewport = viewport_options[viewport_idx]
                 
+                # Windows/Linux 호환 데이터 디렉토리 경로
+                import tempfile
+                import os
+                temp_dir = tempfile.gettempdir()
+                user_data_dir = os.path.join(temp_dir, f'chrome_{MACHINE_ID[:8]}')
+                
                 browser = await p.chromium.launch(
                     headless=True,
                     args=[
@@ -97,7 +114,6 @@ async def get_real_browser_headers():
                         '--disable-blink-features=AutomationControlled',
                         '--disable-web-security',
                         '--disable-features=VizDisplayCompositor',
-                        f'--user-data-dir=/tmp/chrome_{MACHINE_ID}',  # 컴퓨터별 고유 데이터 디렉토리
                         '--disable-background-timer-throttling',
                         '--disable-backgrounding-occluded-windows',
                         '--disable-renderer-backgrounding'
