@@ -216,8 +216,10 @@ async def get_real_browser_headers(session_id=None):
             continue
 
 def test_requests_with_real_headers(num_requests=10):
-    """실제 브라우저 헤더로 requests 테스트 - 세션 로테이션으로 429 우회"""
+    """실제 브라우저 헤더로 requests 테스트 - 안정적인 세션 로테이션으로 429 우회"""
     success_count = 0
+    consecutive_failures = 0
+    max_consecutive_failures = 5  # 연속 실패 제한
     
     # 프로그램 시작 전 기존 브라우저 프로세스 정리
     print(f"[{MACHINE_ID}] 프로그램 시작 - 기존 브라우저 프로세스 정리 중...")
@@ -237,64 +239,132 @@ def test_requests_with_real_headers(num_requests=10):
     print(f"[{MACHINE_ID}] 세션 갱신 주기: {session_refresh_interval}번")
     
     headers, cookies = None, None
+    last_success_time = time.time()
     
-    for i in range(num_requests):
-        retry_count = 0
-        
-        # 세션 갱신 조건: 첫 요청, 주기적 갱신, 또는 429 에러 후
-        should_refresh_session = (
-            headers is None or 
-            (i + 1) % session_refresh_interval == 0 or
-            retry_count > 0
-        )
-        
-        if should_refresh_session:
-            print(f"[{MACHINE_ID}] 세션 갱신 중... ({i+1}번째 요청)")
-            headers, cookies = asyncio.run(get_real_browser_headers())
-            # 세션 갱신 후 추가 대기
-            time.sleep(random.uniform(1, 3))
-        
-        while True:
-            retry_count += 1
+    try:
+        for i in range(num_requests):
+            retry_count = 0
+            request_start_time = time.time()
             
-            with requests.Session() as session:
-                for name, value in cookies.items():
-                    session.cookies.set(name, value)
+            # 진행 상황 출력 (100번마다)
+            if (i + 1) % 100 == 0:
+                elapsed_time = time.time() - last_success_time
+                print(f"[{MACHINE_ID}] 진행 상황: {i+1}/{num_requests} (성공: {success_count}, 연속실패: {consecutive_failures})")
+            
+            # 세션 갱신 조건: 첫 요청, 주기적 갱신, 또는 429 에러 후
+            should_refresh_session = (
+                headers is None or 
+                (i + 1) % session_refresh_interval == 0 or
+                retry_count > 0 or
+                consecutive_failures >= 3  # 연속 실패시 세션 갱신
+            )
+            
+            if should_refresh_session:
+                print(f"[{MACHINE_ID}] 세션 갱신 중... ({i+1}번째 요청)")
+                try:
+                    headers, cookies = asyncio.run(get_real_browser_headers())
+                    consecutive_failures = 0  # 세션 갱신 성공시 실패 카운터 리셋
+                    # 세션 갱신 후 추가 대기
+                    time.sleep(random.uniform(1, 3))
+                except Exception as e:
+                    print(f"[{MACHINE_ID}] 세션 갱신 실패: {e} - 브라우저 프로세스 정리 후 재시도...")
+                    kill_existing_browsers()
+                    time.sleep(random.uniform(3, 7))
+                    continue
+            
+            while retry_count < 10:  # 최대 10번 재시도
+                retry_count += 1
                 
                 try:
-                    # 컴퓨터별로 다른 타임아웃 설정
-                    timeout = 3 + (hash(MACHINE_ID) % 3)  # 3~5초
-                    
-                    response = session.post(GRAPHQL_URL, headers=headers, json=BODY, verify=False, timeout=timeout)
-                    
-                    if response.status_code == 200:
-                        success_count += 1
-                        print(f"[{MACHINE_ID}] 요청 {i+1}: 성공 (200) - {retry_count}번째 시도")
+                    with requests.Session() as session:
+                        for name, value in cookies.items():
+                            session.cookies.set(name, value)
                         
-                        # 성공 후 컴퓨터별 랜덤 대기 (더 길게)
-                        delay = base_delay + random.uniform(0, 0.5)
-                        time.sleep(delay)
+                        # 컴퓨터별로 다른 타임아웃 설정
+                        timeout = 5 + (hash(MACHINE_ID) % 3)  # 5~7초 (더 길게)
+                        
+                        response = session.post(GRAPHQL_URL, headers=headers, json=BODY, verify=False, timeout=timeout)
+                        
+                        if response.status_code == 200:
+                            success_count += 1
+                            consecutive_failures = 0  # 성공시 실패 카운터 리셋
+                            last_success_time = time.time()
+                            
+                            print(f"[{MACHINE_ID}] 요청 {i+1}: 성공 (200) - {retry_count}번째 시도")
+                            
+                            # 성공 후 컴퓨터별 랜덤 대기
+                            delay = base_delay + random.uniform(0, 0.5)
+                            time.sleep(delay)
+                            break
+                            
+                        elif response.status_code == 429:
+                            print(f"[{MACHINE_ID}] 요청 {i+1}: Rate Limited (429) - {retry_count}번째 시도, 세션 갱신 후 대기...")
+                            consecutive_failures += 1
+                            
+                            # 429 에러시 세션 갱신 후 더 긴 대기
+                            try:
+                                headers, cookies = asyncio.run(get_real_browser_headers())
+                                time.sleep(random.uniform(5, 10))  # 5~10초 대기
+                            except Exception as e:
+                                print(f"[{MACHINE_ID}] 429 후 세션 갱신 실패: {e}")
+                                time.sleep(random.uniform(10, 20))  # 더 긴 대기
+                            
+                        else:
+                            print(f"[{MACHINE_ID}] 요청 {i+1}: 실패 ({response.status_code}) - {retry_count}번째 시도")
+                            consecutive_failures += 1
+                            
+                            if retry_count < 5:  # 5번 이하일 때만 세션 갱신
+                                try:
+                                    headers, cookies = asyncio.run(get_real_browser_headers())
+                                    time.sleep(random.uniform(2, 4))
+                                except Exception as e:
+                                    print(f"[{MACHINE_ID}] 세션 갱신 실패: {e}")
+                                    time.sleep(random.uniform(5, 10))
+                            
+                    # 요청 시간이 너무 오래 걸리면 중단
+                    if time.time() - request_start_time > 60:  # 1분 이상 걸리면
+                        print(f"[{MACHINE_ID}] 요청 {i+1}: 타임아웃 (60초 초과) - 다음 요청으로 이동")
                         break
                         
-                    elif response.status_code == 429:
-                        print(f"[{MACHINE_ID}] 요청 {i+1}: Rate Limited (429) - {retry_count}번째 시도, 세션 갱신 후 대기...")
-                        # 429 에러시 세션 갱신 후 더 긴 대기
-                        headers, cookies = asyncio.run(get_real_browser_headers())
-                        time.sleep(random.uniform(5, 10))  # 5~10초 대기
-                        
-                    else:
-                        print(f"[{MACHINE_ID}] 요청 {i+1}: 실패 ({response.status_code}) - 세션 갱신...")
-                        headers, cookies = asyncio.run(get_real_browser_headers())
-                        time.sleep(random.uniform(2, 4))
-                        
-                except Exception as e:
-                    print(f"[{MACHINE_ID}] 요청 {i+1}: 예외 ({str(e)}) - {retry_count}번째 시도, 세션 갱신...")
+                except requests.exceptions.Timeout:
+                    print(f"[{MACHINE_ID}] 요청 {i+1}: 타임아웃 - {retry_count}번째 시도")
+                    consecutive_failures += 1
                     time.sleep(random.uniform(2, 5))
-                    headers, cookies = asyncio.run(get_real_browser_headers())
+                    
+                except requests.exceptions.ConnectionError:
+                    print(f"[{MACHINE_ID}] 요청 {i+1}: 연결 오류 - {retry_count}번째 시도")
+                    consecutive_failures += 1
+                    time.sleep(random.uniform(3, 8))
+                    
+                except Exception as e:
+                    print(f"[{MACHINE_ID}] 요청 {i+1}: 예외 ({str(e)}) - {retry_count}번째 시도")
+                    consecutive_failures += 1
+                    time.sleep(random.uniform(2, 5))
+            
+            # 연속 실패가 너무 많으면 긴 대기
+            if consecutive_failures >= max_consecutive_failures:
+                print(f"[{MACHINE_ID}] 연속 실패 {consecutive_failures}회 - 30초 대기 후 계속...")
+                time.sleep(30)
+                consecutive_failures = 0  # 대기 후 리셋
+            
+            # 전체 진행 시간이 너무 오래 걸리면 중단
+            if time.time() - last_success_time > 300:  # 5분간 성공이 없으면
+                print(f"[{MACHINE_ID}] 5분간 성공 없음 - 프로그램 중단")
+                break
+                
+    except KeyboardInterrupt:
+        print(f"\n[{MACHINE_ID}] 사용자에 의해 중단됨")
+    except Exception as e:
+        print(f"\n[{MACHINE_ID}] 예상치 못한 오류: {e}")
+    finally:
+        # 마지막에 브라우저 프로세스 정리
+        print(f"[{MACHINE_ID}] 프로그램 종료 - 브라우저 프로세스 정리 중...")
+        kill_existing_browsers()
     
-    print(f"\n=== [{MACHINE_ID}] 결과 ===")
-    print(f"총 요청: {num_requests} | 성공: {success_count} | 실패: {num_requests - success_count}")
-    print(f"성공률: {(success_count/num_requests)*100:.1f}%")
+    print(f"\n=== [{MACHINE_ID}] 최종 결과 ===")
+    print(f"총 요청: {i+1} | 성공: {success_count} | 실패: {i+1 - success_count}")
+    print(f"성공률: {(success_count/(i+1))*100:.1f}%")
+    print(f"연속 실패 최대: {consecutive_failures}회")
 
 if __name__ == "__main__":
     test_requests_with_real_headers(num_requests=100000)
