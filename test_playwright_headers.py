@@ -26,7 +26,20 @@ def get_random_query():
     """Generate random query with different cities."""
     cities = ["서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종", "수원", "고양", "용인", "성남", "부천", "화성", "안산", "안양", "평택", "시흥", "김포", "의정부", "광명", "과천", "오산", "의왕", "이천", "안성", "하남", "여주", "양평", "동두천", "가평", "연천", "포천", "양주", "구리", "남양주", "파주", "고양", "의정부", "동두천", "가평", "연천", "포천", "양주", "구리", "남양주", "파주"]
     
+    city_english = {
+        "서울": "Seoul", "부산": "Busan", "대구": "Daegu", "인천": "Incheon", "광주": "Gwangju", 
+        "대전": "Daejeon", "울산": "Ulsan", "세종": "Sejong", "수원": "Suwon", "고양": "Goyang", 
+        "용인": "Yongin", "성남": "Seongnam", "부천": "Bucheon", "화성": "Hwaseong", "안산": "Ansan", 
+        "안양": "Anyang", "평택": "Pyeongtaek", "시흥": "Siheung", "김포": "Gimpo", "의정부": "Uijeongbu", 
+        "광명": "Gwangmyeong", "과천": "Gwacheon", "오산": "Osan", "의왕": "Uiwang", "이천": "Icheon", 
+        "안성": "Anseong", "하남": "Hanam", "여주": "Yeoju", "양평": "Yangpyeong", "동두천": "Dongducheon", 
+        "가평": "Gapyeong", "연천": "Yeoncheon", "포천": "Pocheon", "양주": "Yangju", "구리": "Guri", 
+        "남양주": "Namyangju", "파주": "Paju"
+    }
+    
     city = random.choice(cities)
+    city_en = city_english.get(city, city)
+    
     return {
         "operationName": "getRestaurants",
         "variables": {},
@@ -42,7 +55,8 @@ def get_random_query():
             total
           }}
         }}
-        """
+        """,
+        "city_english": city_en
     }
 
 def generate_random_wtm():
@@ -73,17 +87,17 @@ while True:
         
         # Generate random query and x-wtm-graphql value each time
         data = get_random_query()
-        city = data["query"].split('query: "')[1].split('"')[0]  # Extract city from query
+        city_en = data["city_english"]
         x_wtm_graphql = generate_random_wtm()
         headers["x-wtm-graphql"] = x_wtm_graphql
         
         response = requests.post(url, headers=headers, json=data)
         
         if response.status_code == 200:
-            print(f"Request {count} - 200 | IP: {current_ip} | City: {city}")
+            print(f"Request {count} - 200 | IP: {current_ip} | City: {city_en}")
             count += 1  # 200 성공만 카운트
         else:
-            print(f"Request {count} - {response.status_code} | IP: {current_ip} | City: {city}")
+            print(f"Request {count} - {response.status_code} | IP: {current_ip} | City: {city_en}")
             # 429 등 에러는 카운트 안함
             
     except:
