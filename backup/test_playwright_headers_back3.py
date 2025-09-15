@@ -82,4 +82,4 @@ while True:
     except:
         pass  # 에러 발생 시 조용히 넘어가기 (카운트 안함)
     
-    time.sleep(.1)
+    # time.sleep(1)
