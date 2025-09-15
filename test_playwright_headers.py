@@ -208,22 +208,22 @@ def get_natural_delay():
     # Machine ID 기반으로 다른 패턴 생성
     machine_factor = int(MACHINE_ID[:2], 16) / 255.0  # 0-1 사이 값
     
-    # 2대 이상에서 실행 시 더 긴 간격 사용
-    # 각 머신별로 다른 기본 패턴 (더 느리게)
+    # 2대 이상에서 실행 시 적당한 간격 사용
+    # 각 머신별로 다른 기본 패턴 (적당한 속도)
     base_patterns = [
-        random.uniform(0.5, 1.0),    # 빠른 요청 (기존보다 느림)
-        random.uniform(1.0, 2.0),    # 보통 요청
-        random.uniform(2.0, 4.0),    # 느린 요청
-        random.uniform(4.0, 8.0),    # 매우 느린 요청
-        random.uniform(8.0, 15.0),   # 극도로 느린 요청
+        random.uniform(0.1, 0.3),    # 빠른 요청
+        random.uniform(0.3, 0.6),    # 보통 요청
+        random.uniform(0.6, 1.2),    # 느린 요청
+        random.uniform(1.2, 2.5),    # 매우 느린 요청
+        random.uniform(2.5, 5.0),    # 극도로 느린 요청 (가끔)
     ]
     
-    # 머신별로 다른 가중치 적용 (더 보수적으로)
+    # 머신별로 다른 가중치 적용 (적당한 속도)
     weights = [
-        [0.1, 0.4, 0.3, 0.15, 0.05],  # 머신 1: 보통 패턴
-        [0.05, 0.3, 0.4, 0.2, 0.05],  # 머신 2: 느린 패턴
-        [0.05, 0.2, 0.4, 0.25, 0.1],  # 머신 3: 매우 느린 패턴
-        [0.02, 0.15, 0.3, 0.35, 0.18], # 머신 4: 극도로 느린 패턴
+        [0.4, 0.35, 0.2, 0.04, 0.01],  # 머신 1: 빠른 패턴
+        [0.3, 0.4, 0.25, 0.04, 0.01],  # 머신 2: 보통 패턴
+        [0.2, 0.4, 0.3, 0.08, 0.02],   # 머신 3: 느린 패턴
+        [0.15, 0.35, 0.35, 0.12, 0.03], # 머신 4: 매우 느린 패턴
     ]
     
     # 머신 ID 기반으로 가중치 선택
@@ -231,10 +231,10 @@ def get_natural_delay():
     selected_weights = weights[weight_index]
     
     # 추가 랜덤 요소
-    jitter = random.uniform(-0.2, 0.2)
+    jitter = random.uniform(-0.1, 0.1)
     base_delay = random.choices(base_patterns, weights=selected_weights)[0]
     
-    return max(0.5, base_delay + jitter)  # 최소 0.5초 보장
+    return max(0.1, base_delay + jitter)  # 최소 0.1초 보장
 
 def create_session():
     """Create a new session with unique cookies per machine."""
@@ -374,8 +374,8 @@ while True:
             error_count += 1
             print(f"Request {count} - 429 Rate Limited | IP: {current_ip} | City: {city_en} | 429 Count: {consecutive_429}")
             
-            # 429 에러 시 지수적 백오프
-            rate_limit_delay = min(60.0, rate_limit_delay * 1.5)  # 최대 60초까지 증가
+            # 429 에러 시 적당한 백오프 (너무 길지 않게)
+            rate_limit_delay = min(10.0, rate_limit_delay * 1.3)  # 최대 10초까지 증가
             print(f"Rate limit delay increased to: {rate_limit_delay:.2f}s")
             time.sleep(rate_limit_delay)
             continue  # 다음 루프로 바로 이동
@@ -404,28 +404,28 @@ while True:
     # Apply natural delay pattern with burst patterns
     delay = get_natural_delay()
     
-    # 429 에러가 많이 발생하면 더 보수적으로
-    if consecutive_429 > 3:
-        # 429 에러가 많으면 더 긴 대기
-        delay = max(delay, rate_limit_delay)
+    # 429 에러가 많이 발생하면 보수적으로 (하지만 너무 길지 않게)
+    if consecutive_429 > 5:
+        # 429 에러가 많으면 더 긴 대기 (하지만 최대 5초)
+        delay = min(5.0, max(delay, rate_limit_delay))
         print(f"Conservative mode due to 429 errors: {delay:.2f}s")
     
     # 머신별로 다른 버스트 패턴 적용 (429 에러 고려)
     machine_hash = hashlib.md5(MACHINE_ID.encode()).hexdigest()
     burst_factor = int(machine_hash[2], 16) % 3
     
-    if burst_factor == 0 and count % 30 == 0 and consecutive_429 < 2:
-        # 가끔 긴 대기 (사용자가 다른 작업을 하는 것처럼)
-        long_delay = random.uniform(10, 30)
+    if burst_factor == 0 and count % 50 == 0 and consecutive_429 < 3:
+        # 가끔 긴 대기 (사용자가 다른 작업을 하는 것처럼) - 덜 자주
+        long_delay = random.uniform(5, 15)
         print(f"Long pause: {long_delay:.2f}s (simulating user activity)")
         time.sleep(long_delay)
-    elif burst_factor == 1 and count % 25 == 0 and consecutive_429 < 1:
-        # 가끔 짧은 연속 요청 (빠른 검색) - 429 에러가 없을 때만
-        burst_count = random.randint(2, 3)  # 더 적은 수로 제한
+    elif burst_factor == 1 and count % 30 == 0 and consecutive_429 < 2:
+        # 가끔 짧은 연속 요청 (빠른 검색) - 429 에러가 적을 때만
+        burst_count = random.randint(2, 4)  # 적당한 수로 증가
         print(f"Burst mode: {burst_count} quick requests")
         for _ in range(burst_count - 1):
-            # 빠른 연속 요청 (더 긴 간격)
-            time.sleep(random.uniform(0.5, 1.0))
+            # 빠른 연속 요청 (적당한 간격)
+            time.sleep(random.uniform(0.2, 0.5))
     else:
         # 일반적인 지연
         time.sleep(delay)
