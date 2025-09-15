@@ -22,23 +22,28 @@ headers = {
     "x-wtm-graphql": "",
 }
 
-data = {
-    "operationName": "getRestaurants",
-    "variables": {},
-    "query": """
-    query getRestaurants {
-      restaurants: restaurantList(input: {query: "서울"}) {
-        items {
-          id
-          name
-          x
-          y
-        }
-        total
-      }
+def get_random_query():
+    """Generate random query with different cities."""
+    cities = ["서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종", "수원", "고양", "용인", "성남", "부천", "화성", "안산", "안양", "평택", "시흥", "김포", "의정부", "광명", "과천", "오산", "의왕", "이천", "안성", "하남", "여주", "양평", "동두천", "가평", "연천", "포천", "양주", "구리", "남양주", "파주", "고양", "의정부", "동두천", "가평", "연천", "포천", "양주", "구리", "남양주", "파주"]
+    
+    city = random.choice(cities)
+    return {
+        "operationName": "getRestaurants",
+        "variables": {},
+        "query": f"""
+        query getRestaurants {{
+          restaurants: restaurantList(input: {{query: "{city}"}}) {{
+            items {{
+              id
+              name
+              x
+              y
+            }}
+            total
+          }}
+        }}
+        """
     }
-    """
-}
 
 def generate_random_wtm():
     """Generate random x-wtm-graphql value."""
@@ -66,17 +71,19 @@ while True:
         # Get current IP
         current_ip = get_current_ip()
         
-        # Generate random x-wtm-graphql value each time
+        # Generate random query and x-wtm-graphql value each time
+        data = get_random_query()
+        city = data["query"].split('query: "')[1].split('"')[0]  # Extract city from query
         x_wtm_graphql = generate_random_wtm()
         headers["x-wtm-graphql"] = x_wtm_graphql
         
         response = requests.post(url, headers=headers, json=data)
         
         if response.status_code == 200:
-            print(f"Request {count} - 200 | IP: {current_ip}")
+            print(f"Request {count} - 200 | IP: {current_ip} | City: {city}")
             count += 1  # 200 성공만 카운트
         else:
-            print(f"Request {count} - {response.status_code} | IP: {current_ip}")
+            print(f"Request {count} - {response.status_code} | IP: {current_ip} | City: {city}")
             # 429 등 에러는 카운트 안함
             
     except:
