@@ -91,9 +91,13 @@ SEC_CH_UA_VALUES = [
 ]
 
 def get_random_headers():
-    """Generate random headers for each request."""
+    """Generate random headers for each request with machine-specific patterns."""
     user_agent = random.choice(USER_AGENTS)
     sec_ch_ua = random.choice(SEC_CH_UA_VALUES)
+    
+    # Machine ID 기반으로 일관된 패턴 생성
+    machine_hash = hashlib.md5(MACHINE_ID.encode()).hexdigest()
+    machine_factor = int(machine_hash[0], 16) % 4
     
     # User-Agent에 따라 플랫폼 결정
     if "Windows" in user_agent:
@@ -103,9 +107,55 @@ def get_random_headers():
     else:
         platform = '"Linux"'
     
+    # 머신별로 다른 헤더 패턴
+    header_patterns = [
+        {
+            "accept": "*/*",
+            "accept-language": "ko-KR,ko;q=0.9,en;q=0.8",
+            "accept-encoding": "gzip, deflate, br",
+            "cache-control": "no-cache",
+        },
+        {
+            "accept": "*/*",
+            "accept-language": "ko,ko-KR;q=0.9,en-US;q=0.8,en;q=0.7",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "cache-control": "no-cache, no-store",
+        },
+        {
+            "accept": "*/*",
+            "accept-language": "ko-KR;q=0.9,en;q=0.8",
+            "accept-encoding": "gzip, deflate",
+            "cache-control": "no-cache",
+        },
+        {
+            "accept": "*/*",
+            "accept-language": "ko,en-US;q=0.9,en;q=0.8,ko-KR;q=0.7",
+            "accept-encoding": "gzip, deflate, br",
+            "cache-control": "no-cache, must-revalidate",
+        }
+    ]
+    
+    base_headers = header_patterns[machine_factor]
+    
+    # 추가 머신별 고유 헤더
+    unique_headers = {
+        "x-machine-id": MACHINE_ID,
+        "x-request-id": f"req_{machine_hash[:8]}{random.randint(1000, 9999)}",
+        "x-session-id": f"ses_{machine_hash[8:16]}{random.randint(100, 999)}",
+        "x-timestamp": str(int(time.time() * 1000)),
+        "x-random": f"rand_{random.randint(10000, 99999)}",
+    }
+    
+    # 머신별로 다른 추가 헤더
+    if machine_factor % 2 == 0:
+        unique_headers["x-client-version"] = f"1.{random.randint(0, 9)}.{random.randint(0, 9)}"
+        unique_headers["x-device-type"] = "desktop"
+    else:
+        unique_headers["x-app-version"] = f"2.{random.randint(0, 9)}.{random.randint(0, 9)}"
+        unique_headers["x-platform"] = "web"
+    
     return {
-        "accept": "*/*",
-        "accept-language": random.choice(["ko", "ko-KR", "ko-KR,ko;q=0.9,en;q=0.8"]),
+        **base_headers,
         "content-type": "application/json",
         "priority": random.choice(["u=1, i", "u=1", "i"]),
         "user-agent": user_agent,
@@ -117,7 +167,7 @@ def get_random_headers():
         "sec-fetch-site": "same-site",
         "x-ncaptcha-violation": "false",
         "x-wtm-graphql": "",
-        "x-machine-id": MACHINE_ID,  # 각 컴퓨터별 고유 식별자
+        **unique_headers,
     }
 
 
@@ -154,29 +204,78 @@ def get_current_ip():
     return "Unknown"
 
 def get_natural_delay():
-    """Generate natural delay pattern."""
-    # 다양한 지연 패턴 (초 단위)
-    patterns = [
-        random.uniform(0.05, 0.3),  # 빠른 요청
-        random.uniform(0.3, 0.8),   # 보통 요청
-        random.uniform(0.8, 2.0),   # 느린 요청
-        random.uniform(2.0, 5.0),   # 매우 느린 요청 (가끔)
+    """Generate natural delay pattern with more variation."""
+    # Machine ID 기반으로 다른 패턴 생성
+    machine_factor = int(MACHINE_ID[:2], 16) / 255.0  # 0-1 사이 값
+    
+    # 각 머신별로 다른 기본 패턴
+    base_patterns = [
+        random.uniform(0.05, 0.2),   # 매우 빠른 요청
+        random.uniform(0.2, 0.5),    # 빠른 요청
+        random.uniform(0.5, 1.0),    # 보통 요청
+        random.uniform(1.0, 2.5),    # 느린 요청
+        random.uniform(2.5, 8.0),    # 매우 느린 요청
     ]
     
-    # 가중치를 두어 대부분은 빠른-보통 패턴
-    weights = [0.4, 0.4, 0.15, 0.05]
-    return random.choices(patterns, weights=weights)[0]
+    # 머신별로 다른 가중치 적용
+    weights = [
+        [0.5, 0.3, 0.15, 0.04, 0.01],  # 머신 1: 빠른 패턴
+        [0.3, 0.4, 0.2, 0.08, 0.02],   # 머신 2: 보통 패턴
+        [0.2, 0.3, 0.3, 0.15, 0.05],   # 머신 3: 느린 패턴
+        [0.1, 0.2, 0.4, 0.25, 0.05],   # 머신 4: 매우 느린 패턴
+    ]
+    
+    # 머신 ID 기반으로 가중치 선택
+    weight_index = int(machine_factor * len(weights)) % len(weights)
+    selected_weights = weights[weight_index]
+    
+    # 추가 랜덤 요소
+    jitter = random.uniform(-0.1, 0.1)
+    base_delay = random.choices(base_patterns, weights=selected_weights)[0]
+    
+    return max(0.01, base_delay + jitter)  # 최소 0.01초 보장
 
 def create_session():
-    """Create a new session with cookies."""
+    """Create a new session with unique cookies per machine."""
     session = requests.Session()
     
-    # 랜덤한 쿠키 설정
-    cookies = {
-        'NID_AUT': f"random{random.randint(100000, 999999)}",
-        'NID_SES': f"session{random.randint(100000, 999999)}",
-        'NID_JKL': f"jkl{random.randint(1000, 9999)}",
+    # Machine ID 기반으로 고유한 쿠키 생성
+    machine_hash = hashlib.md5(MACHINE_ID.encode()).hexdigest()
+    
+    # 다양한 쿠키 패턴
+    cookie_patterns = [
+        {
+            'NID_AUT': f"{machine_hash[:8]}{random.randint(1000, 9999)}",
+            'NID_SES': f"ses_{machine_hash[8:16]}{random.randint(100, 999)}",
+            'NID_JKL': f"jkl_{random.randint(10000, 99999)}",
+            'NID_DEVICE': f"dev_{machine_hash[16:24]}",
+        },
+        {
+            'NID_AUT': f"auth_{random.randint(100000, 999999)}",
+            'NID_SES': f"session_{machine_hash[:12]}",
+            'NID_JKL': f"jkl_{machine_hash[12:20]}{random.randint(10, 99)}",
+            'NID_DEVICE': f"device_{random.randint(1000, 9999)}",
+        },
+        {
+            'NID_AUT': f"{random.randint(1000000, 9999999)}",
+            'NID_SES': f"sess_{machine_hash[20:28]}",
+            'NID_JKL': f"jkl_{machine_hash[4:12]}{random.randint(100, 999)}",
+            'NID_DEVICE': f"dev_{machine_hash[8:16]}{random.randint(1, 9)}",
+        }
+    ]
+    
+    # 머신별로 다른 쿠키 패턴 선택
+    pattern_index = int(machine_hash[0], 16) % len(cookie_patterns)
+    cookies = cookie_patterns[pattern_index]
+    
+    # 추가 랜덤 쿠키들
+    additional_cookies = {
+        'NID_BROWSER': f"browser_{random.randint(100, 999)}",
+        'NID_TIME': str(int(time.time())),
+        'NID_RAND': f"rand_{random.randint(10000, 99999)}",
     }
+    
+    cookies.update(additional_cookies)
     
     for name, value in cookies.items():
         session.cookies.set(name, value)
@@ -233,23 +332,23 @@ print(f"Starting requests with Machine ID: {MACHINE_ID}")
 print(f"Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
 print(f"Platform: {platform.system()}")
 print("=" * 50)
-print("ExpressVPN 사용 시 주의사항:")
-print("1. ExpressVPN이 연결되어 있는지 확인하세요")
-print("2. 각 컴퓨터에서 다른 서버에 연결하세요")
-print("3. 연결 상태: expressvpn status")
-print("4. 서버 변경: expressvpn connect [서버명]")
+print("ExpressVPN Usage Notes:")
+print("1. Make sure ExpressVPN is connected")
+print("2. Connect to different servers on each computer")
+print("3. Check status: expressvpn status")
+print("4. Change server: expressvpn connect [server_name]")
 print("=" * 50)
 
 while True:
     try:
-        # IP 주소는 10번에 한 번만 체크 (성능 최적화)
+        # Check IP address only every 10 requests (performance optimization)
         if count % 10 == 1 or last_ip_check == 0:
             current_ip = get_current_ip()
             last_ip_check = count
         else:
             current_ip = "Cached"
         
-        # 매번 새로운 헤더 생성
+        # Generate new headers each time
         headers = get_random_headers()
         
         # Generate random query and x-wtm-graphql value each time
@@ -258,40 +357,59 @@ while True:
         x_wtm_graphql = generate_random_wtm()
         headers["x-wtm-graphql"] = x_wtm_graphql
         
-        # ExpressVPN 사용 - 프록시 없이 직접 요청
+        # Use ExpressVPN - direct request without proxy
         response = session.post(url, headers=headers, json=data, timeout=10)
         
         if response.status_code == 200:
             print(f"Request {count} - 200 | IP: {current_ip} | City: {city_en} | Machine: {MACHINE_ID}")
-            count += 1  # 200 성공만 카운트
-            error_count = 0  # 성공 시 에러 카운트 리셋
+            count += 1  # Count only 200 successes
+            error_count = 0  # Reset error count on success
         else:
             error_count += 1
             print(f"Request {count} - {response.status_code} | IP: {current_ip} | City: {city_en} | Errors: {error_count}")
             
-            # 연속 에러가 많으면 세션 재생성
+            # Recreate session if too many consecutive errors
             if error_count >= 5:
                 print("Too many errors, recreating session...")
                 session = create_session()
                 error_count = 0
-                time.sleep(random.uniform(2, 5))  # 에러 후 잠시 대기
+                time.sleep(random.uniform(2, 5))  # Wait after error
             
     except Exception as e:
         error_count += 1
         print(f"Request {count} - Error: {str(e)[:50]}... | Errors: {error_count}")
         
-        # 연속 에러가 많으면 세션 재생성
+        # Recreate session if too many consecutive errors
         if error_count >= 5:
             print("Too many errors, recreating session...")
             session = create_session()
             error_count = 0
-            time.sleep(random.uniform(2, 5))  # 에러 후 잠시 대기
+            time.sleep(random.uniform(2, 5))  # Wait after error
     
-    # 자연스러운 지연 패턴 적용
+    # Apply natural delay pattern with burst patterns
     delay = get_natural_delay()
-    time.sleep(delay)
     
-    # 100번마다 통계 출력
+    # 머신별로 다른 버스트 패턴 적용
+    machine_hash = hashlib.md5(MACHINE_ID.encode()).hexdigest()
+    burst_factor = int(machine_hash[2], 16) % 3
+    
+    if burst_factor == 0 and count % 20 == 0:
+        # 가끔 긴 대기 (사용자가 다른 작업을 하는 것처럼)
+        long_delay = random.uniform(5, 15)
+        print(f"Long pause: {long_delay:.2f}s (simulating user activity)")
+        time.sleep(long_delay)
+    elif burst_factor == 1 and count % 15 == 0:
+        # 가끔 짧은 연속 요청 (빠른 검색)
+        burst_count = random.randint(2, 4)
+        print(f"Burst mode: {burst_count} quick requests")
+        for _ in range(burst_count - 1):
+            # 빠른 연속 요청
+            time.sleep(random.uniform(0.01, 0.05))
+    else:
+        # 일반적인 지연
+        time.sleep(delay)
+    
+    # Print stats every 100 requests
     if count % 100 == 0:
         elapsed = datetime.now() - start_time
         print(f"=== Stats after {count} requests ===")
