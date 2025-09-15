@@ -183,8 +183,8 @@ def create_session():
     
     return session
 
-def get_varied_query():
-    """Generate more varied query patterns."""
+def get_random_query():
+    """Generate random query with different cities."""
     cities = ["서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종", "수원", "고양", "용인", "성남", "부천", "화성", "안산", "안양", "평택", "시흥", "김포", "의정부", "광명", "과천", "오산", "의왕", "이천", "안성", "하남", "여주", "양평", "동두천", "가평", "연천", "포천", "양주", "구리", "남양주", "파주"]
     
     city_english = {
@@ -201,17 +201,22 @@ def get_varied_query():
     city = random.choice(cities)
     city_en = city_english.get(city, city)
     
-    # 다양한 쿼리 패턴
-    query_patterns = [
-        f'query getRestaurants {{ restaurants: restaurantList(input: {{query: "{city}"}}) {{ items {{ id name x y }} total }} }}',
-        f'query getRestaurants {{ restaurants: restaurantList(input: {{query: "{city}", limit: 20}}) {{ items {{ id name x y address }} total }} }}',
-        f'query getRestaurants {{ restaurants: restaurantList(input: {{query: "{city}", sort: "distance"}}) {{ items {{ id name x y rating }} total }} }}',
-    ]
-    
     return {
         "operationName": "getRestaurants",
         "variables": {},
-        "query": random.choice(query_patterns),
+        "query": f"""
+        query getRestaurants {{
+          restaurants: restaurantList(input: {{query: "{city}"}}) {{
+            items {{
+              id
+              name
+              x
+              y
+            }}
+            total
+          }}
+        }}
+        """,
         "city_english": city_en
     }
 
@@ -248,7 +253,7 @@ while True:
         headers = get_random_headers()
         
         # Generate random query and x-wtm-graphql value each time
-        data = get_varied_query()
+        data = get_random_query()
         city_en = data["city_english"]
         x_wtm_graphql = generate_random_wtm()
         headers["x-wtm-graphql"] = x_wtm_graphql
