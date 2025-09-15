@@ -6,21 +6,35 @@ import time
 
 url = "https://pcmap-api.place.naver.com/graphql"
 
-headers = {
-    "accept": "*/*",
-    "accept-language": "ko",
-    "content-type": "application/json",
-    "priority": "u=1, i",
-    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
-    "sec-ch-ua": '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"',
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": '"Windows"',
-    "sec-fetch-dest": "empty",
-    "sec-fetch-mode": "cors",
-    "sec-fetch-site": "same-site",
-    "x-ncaptcha-violation": "false",
-    "x-wtm-graphql": "",
-}
+def get_random_headers():
+    """Generate random headers for each request."""
+    user_agents = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+    ]
+    
+    languages = ["ko", "ko-KR", "en-US", "ja-JP", "zh-CN"]
+    platforms = ['"Windows"', '"macOS"', '"Linux"']
+    
+    return {
+        "accept": "*/*",
+        "accept-language": random.choice(languages),
+        "content-type": "application/json",
+        "priority": "u=1, i",
+        "user-agent": random.choice(user_agents),
+        "sec-ch-ua": f'"Not;A=Brand";v="99", "Google Chrome";v="{random.randint(130, 140)}", "Chromium";v="{random.randint(130, 140)}"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": random.choice(platforms),
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-site",
+        "x-ncaptcha-violation": "false",
+        "x-wtm-graphql": "",
+    }
 
 data = {
     "operationName": "getRestaurants",
@@ -66,7 +80,8 @@ while True:
         # Get current IP
         current_ip = get_current_ip()
         
-        # Generate random x-wtm-graphql value each time
+        # Generate random headers and x-wtm-graphql value each time
+        headers = get_random_headers()
         x_wtm_graphql = generate_random_wtm()
         headers["x-wtm-graphql"] = x_wtm_graphql
         
