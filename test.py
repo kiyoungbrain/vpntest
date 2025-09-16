@@ -103,7 +103,7 @@ def test_requests_with_real_headers(num_requests=10):
                     response = session.post(GRAPHQL_URL, headers=headers, json=BODY, verify=False, timeout=5)
                     # time.sleep(.4)
                     # time.sleep(.5)
-                    time.sleep(2.9)
+                    time.sleep(3)
                     
                     if response.status_code == 200:
                         success_count += 1
@@ -111,11 +111,11 @@ def test_requests_with_real_headers(num_requests=10):
                         break
                     else:
                         print(f"Request {i+1}: Failed ({response.status_code}) - Restarting...")
-                        headers, cookies = asyncio.run(get_real_browser_headers())
+                        # headers, cookies = asyncio.run(get_real_browser_headers())
                         
                 except Exception as e:
                     print(f"Request {i+1}: Exception ({str(e)}) - {retry_count}th attempt, restarting...")
-                    headers, cookies = asyncio.run(get_real_browser_headers())
+                    # headers, cookies = asyncio.run(get_real_browser_headers())
     
     print(f"\n=== Results ===")
     print(f"Total requests: {num_requests} | Success: {success_count} | Failed: {num_requests - success_count}")
