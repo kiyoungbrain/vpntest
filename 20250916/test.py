@@ -24,7 +24,7 @@ EXCEPT_SPOTS_LOG_FILE = "log_exceptSpot.log"
 RETRY_DELAY = 1
 
 # API 요청 간 딜레이 시간 (초)
-REQUEST_DELAY = 3
+REQUEST_DELAY = 5
 # REQUEST_DELAY = 0
 
 # API 요청 카운터 및 딜레이 설정
