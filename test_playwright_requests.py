@@ -119,7 +119,7 @@ if __name__ == "__main__":
     
     # Test with parallel requests
     async def main():
-        NUM_REQUESTS = 3  # Reduce to 3 for Ubuntu testing
+        NUM_REQUESTS = 5  # Reduce to 3 for Ubuntu testing
         request_counter = 0
         
         while True:
