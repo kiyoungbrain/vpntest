@@ -1,6 +1,9 @@
 import requests
 import urllib3
 import time
+import random
+import subprocess
+import re
 
 # HTTPS 인증 경고 비활성화
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -29,6 +32,45 @@ BODY = {
     "query": QUERY
 }
 
+def get_network_interface():
+    """Get the main network interface name"""
+    try:
+        result = subprocess.run(['ip', 'route', 'show', 'default'], 
+                              capture_output=True, text=True, check=True)
+        interface = result.stdout.split()[4]  # Get interface name from default route
+        return interface
+    except:
+        return 'eth0'  # Default fallback
+
+def generate_random_mac():
+    """Generate a random MAC address"""
+    return ':'.join(['%02x' % random.randint(0, 255) for _ in range(6)])
+
+def change_mac_address():
+    """Change MAC address of the network interface"""
+    interface = get_network_interface()
+    new_mac = generate_random_mac()
+    
+    try:
+        # Bring interface down
+        subprocess.run(['sudo', 'ip', 'link', 'set', 'dev', interface, 'down'], 
+                      check=True, capture_output=True)
+        
+        # Change MAC address
+        subprocess.run(['sudo', 'ip', 'link', 'set', 'dev', interface, 'address', new_mac], 
+                      check=True, capture_output=True)
+        
+        # Bring interface up
+        subprocess.run(['sudo', 'ip', 'link', 'set', 'dev', interface, 'up'], 
+                      check=True, capture_output=True)
+        
+        print(f"MAC address changed to: {new_mac}")
+        return True
+        
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to change MAC address: {e}")
+        return False
+
 def get_headers():
     """Return basic headers"""
     return {
@@ -48,12 +90,18 @@ def test_requests_with_headers(num_requests=10):
     
     for i in range(num_requests):
         retry_count = 0
+        
+        # Change MAC address before each request
+        print(f"Request {i+1}: Changing MAC address...")
+        change_mac_address()
+        time.sleep(2)  # Wait for network to stabilize
+        
         while True:
             retry_count += 1
             
             try:
                 response = requests.post(GRAPHQL_URL, headers=headers, json=BODY, verify=False, timeout=2)
-                time.sleep(1.5)
+                # time.sleep(1.5)
                 
                 if response.status_code == 200:
                     success_count += 1
