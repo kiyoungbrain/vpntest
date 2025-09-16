@@ -76,7 +76,7 @@ async def get_real_browser_headers():
                 )
                 
                 page = await context.new_page()
-                await page.goto('https://map.naver.com/', timeout=3000)
+                await page.goto('https://map.naver.com/', timeout=5000)
                 
                 headers = await page.evaluate("""
                     () => ({
@@ -118,9 +118,10 @@ def test_requests_with_real_headers(num_requests=10):
                     session.cookies.set(name, value)
                 
                 try:
-                    response = session.post(GRAPHQL_URL, headers=headers, json=BODY, verify=False, timeout=2)
+                    response = session.post(GRAPHQL_URL, headers=headers, json=BODY, verify=False, timeout=5)
                     # time.sleep(.4)
-                    time.sleep(.5)
+                    # time.sleep(.5)
+                    time.sleep(2)
                     
                     if response.status_code == 200:
                         success_count += 1
