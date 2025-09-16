@@ -42,9 +42,8 @@ async def make_single_request(session_id):
                     headless=True,
                     args=[
                         '--no-sandbox',
-                        '--disable-blink-features=AutomationControlled',
-                        '--disable-web-security',
-                        '--disable-features=VizDisplayCompositor'
+                        '--disable-setuid-sandbox',
+                        '--disable-dev-shm-usage'
                     ]
                 )
                 
@@ -55,8 +54,8 @@ async def make_single_request(session_id):
                 page = await context.new_page()
                 
                 # Access Naver Map first to set cookies
-                await page.goto('https://map.naver.com/', timeout=5000)
-                await asyncio.sleep(0.5)  # Wait for page loading
+                await page.goto('https://map.naver.com/', timeout=10000)
+                await asyncio.sleep(1)  # Wait for page loading
                 
                 # Execute GraphQL request
                 response = await page.request.post(
@@ -68,7 +67,8 @@ async def make_single_request(session_id):
                         'content-type': 'application/json',
                         'referer': 'https://map.naver.com/',
                         'origin': 'https://map.naver.com'
-                    }
+                    },
+                    timeout=15000
                 )
                 
                 # Read response first, then close browser
@@ -111,8 +111,15 @@ async def test_playwright_parallel_requests(num_requests=10, start_id=1):
     return success_count, failure_count, execution_time
 
 if __name__ == "__main__":
+    # Test with single request first
+    async def test_single():
+        print("Testing single request...")
+        result = await make_single_request(1)
+        print(f"Single request result: {result}")
+    
+    # Test with parallel requests
     async def main():
-        NUM_REQUESTS = 10
+        NUM_REQUESTS = 3  # Reduce to 3 for Ubuntu testing
         request_counter = 0
         
         while True:
@@ -128,4 +135,6 @@ if __name__ == "__main__":
             print(f"Waiting {remaining_wait:.1f} seconds before next batch...")
             await asyncio.sleep(remaining_wait+1)
     
-    asyncio.run(main())
+    # Uncomment one of these to test:
+    asyncio.run(test_single())  # Test single request first
+    # asyncio.run(main())  # Test parallel requests
