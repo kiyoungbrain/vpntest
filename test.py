@@ -15,22 +15,6 @@ GRAPHQL_URL = "https://pcmap-api.place.naver.com/graphql"
 # UserAgent 인스턴스 생성
 ua = UserAgent()
 
-def kill_existing_browsers():
-    """기존 브라우저 프로세스 종료 - Ubuntu 최적화"""
-    try:
-        # Ubuntu/Linux 환경에서 브라우저 프로세스 종료
-        subprocess.run(['pkill', '-f', 'chrome'], 
-                     capture_output=True, check=False)
-        subprocess.run(['pkill', '-f', 'chromium'], 
-                     capture_output=True, check=False)
-        subprocess.run(['pkill', '-f', 'google-chrome'], 
-                     capture_output=True, check=False)
-        subprocess.run(['pkill', '-f', 'chromium-browser'], 
-                     capture_output=True, check=False)
-        print("Existing browser processes cleaned up")
-    except Exception as e:
-        print(f"Error cleaning up browser processes: {e}")
-
 QUERY = """
 query getRestaurants {
   restaurants: restaurantList(input: {query: "서울"}) {
@@ -102,9 +86,7 @@ def test_requests_with_real_headers(num_requests=10):
     """Test requests with real browser headers - retry until 200"""
     success_count = 0
     
-    # Clean up existing browser processes before starting
-    print("Starting program - cleaning up existing browser processes...")
-    kill_existing_browsers()
+    print("Starting program...")
     
     headers, cookies = asyncio.run(get_real_browser_headers())
     
@@ -121,20 +103,18 @@ def test_requests_with_real_headers(num_requests=10):
                     response = session.post(GRAPHQL_URL, headers=headers, json=BODY, verify=False, timeout=5)
                     # time.sleep(.4)
                     # time.sleep(.5)
-                    time.sleep(2)
+                    time.sleep(3)
                     
                     if response.status_code == 200:
                         success_count += 1
                         print(f"Request {i+1}: Success (200) - {retry_count}th attempt")
                         break
                     else:
-                        print(f"Request {i+1}: Failed ({response.status_code}) - Restarting after browser cleanup...")
-                        # kill_existing_browsers()
+                        print(f"Request {i+1}: Failed ({response.status_code}) - Restarting...")
                         headers, cookies = asyncio.run(get_real_browser_headers())
                         
                 except Exception as e:
-                    print(f"Request {i+1}: Exception ({str(e)}) - {retry_count}th attempt, restarting after browser cleanup...")
-                    # kill_existing_browsers()
+                    print(f"Request {i+1}: Exception ({str(e)}) - {retry_count}th attempt, restarting...")
                     headers, cookies = asyncio.run(get_real_browser_headers())
     
     print(f"\n=== Results ===")
