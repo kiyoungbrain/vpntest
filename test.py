@@ -7,7 +7,6 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 GRAPHQL_URL = "https://pcmap-api.place.naver.com/graphql"
 
-
 QUERY = """
 query getRestaurants {
   restaurants: restaurantList(input: {query: "서울"}) {
@@ -45,7 +44,6 @@ def test_requests_with_headers(num_requests=10):
     """Test requests with basic headers"""
     success_count = 0
     
-    print("Starting program...")
     headers = get_headers()
     
     for i in range(num_requests):
@@ -55,23 +53,20 @@ def test_requests_with_headers(num_requests=10):
             
             try:
                 response = requests.post(GRAPHQL_URL, headers=headers, json=BODY, verify=False, timeout=2)
-                time.sleep(1)
+                time.sleep(1.5)
                 
                 if response.status_code == 200:
                     success_count += 1
-                    print(f"Request {i+1}: Success (200) - {retry_count}th attempt")
+                    print("200")
                     break
+                elif response.status_code == 429:
+                    print("429 - Waiting 15 seconds...")
+                    time.sleep(15)
                 else:
-                    print(f"Request {i+1}: Failed ({response.status_code}) - Retrying...")
-                    if retry_count >= 3:  # Maximum 3 retries
-                        print(f"Request {i+1}: Maximum retry attempts exceeded")
-                        break
+                    print(f"{response.status_code}")
                         
             except Exception as e:
-                print(f"Request {i+1}: Exception ({str(e)}) - {retry_count}th attempt")
-                if retry_count >= 3:  # Maximum 3 retries
-                    print(f"Request {i+1}: Maximum retry attempts exceeded")
-                    break
+                print("ERROR")
     
     print(f"\n=== Results ===")
     print(f"Total requests: {num_requests} | Success: {success_count} | Failed: {num_requests - success_count}")
