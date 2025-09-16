@@ -52,23 +52,56 @@ def change_mac_address():
     new_mac = generate_random_mac()
     
     try:
+        print(f"Attempting to change MAC address for interface: {interface}")
+        
+        # Check if interface exists
+        result = subprocess.run(['ip', 'link', 'show', interface], 
+                              capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"Interface {interface} not found. Available interfaces:")
+            subprocess.run(['ip', 'link', 'show'], check=False)
+            return False
+        
         # Bring interface down
-        subprocess.run(['sudo', 'ip', 'link', 'set', 'dev', interface, 'down'], 
-                      check=True, capture_output=True)
+        print(f"Bringing {interface} down...")
+        result = subprocess.run(['sudo', 'ip', 'link', 'set', 'dev', interface, 'down'], 
+                              capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"Failed to bring interface down: {result.stderr}")
+            return False
         
         # Change MAC address
-        subprocess.run(['sudo', 'ip', 'link', 'set', 'dev', interface, 'address', new_mac], 
-                      check=True, capture_output=True)
+        print(f"Changing MAC address to: {new_mac}")
+        result = subprocess.run(['sudo', 'ip', 'link', 'set', 'dev', interface, 'address', new_mac], 
+                              capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"Failed to change MAC address: {result.stderr}")
+            # Try to bring interface back up
+            subprocess.run(['sudo', 'ip', 'link', 'set', 'dev', interface, 'up'], 
+                          capture_output=True)
+            return False
         
         # Bring interface up
-        subprocess.run(['sudo', 'ip', 'link', 'set', 'dev', interface, 'up'], 
-                      check=True, capture_output=True)
+        print(f"Bringing {interface} up...")
+        result = subprocess.run(['sudo', 'ip', 'link', 'set', 'dev', interface, 'up'], 
+                              capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"Failed to bring interface up: {result.stderr}")
+            return False
         
-        print(f"MAC address changed to: {new_mac}")
-        return True
+        # Verify MAC address change
+        time.sleep(1)
+        result = subprocess.run(['ip', 'link', 'show', interface], 
+                              capture_output=True, text=True)
+        if new_mac in result.stdout:
+            print(f"MAC address successfully changed to: {new_mac}")
+            return True
+        else:
+            print(f"MAC address change verification failed")
+            return False
         
-    except subprocess.CalledProcessError as e:
-        print(f"Failed to change MAC address: {e}")
+    except Exception as e:
+        print(f"Unexpected error changing MAC address: {e}")
         return False
 
 def get_headers():
