@@ -126,15 +126,29 @@ def test_requests_with_headers(num_requests=10):
         
         # Change MAC address before each request
         print(f"Request {i+1}: Changing MAC address...")
-        change_mac_address()
-        time.sleep(2)  # Wait for network to stabilize
+        mac_success = change_mac_address()
+        if not mac_success:
+            print(f"Request {i+1}: MAC change failed, skipping...")
+            continue
+        
+        # Wait longer for network to stabilize and get new IP
+        print(f"Request {i+1}: Waiting for network to stabilize...")
+        time.sleep(5)  # Increased wait time
+        
+        # Check network connectivity
+        try:
+            test_response = requests.get('https://www.google.com', timeout=5)
+            print(f"Request {i+1}: Network connectivity OK")
+        except:
+            print(f"Request {i+1}: Network connectivity failed, retrying...")
+            time.sleep(10)
         
         while True:
             retry_count += 1
             
             try:
-                response = requests.post(GRAPHQL_URL, headers=headers, json=BODY, verify=False, timeout=2)
-                # time.sleep(1.5)
+                response = requests.post(GRAPHQL_URL, headers=headers, json=BODY, verify=False, timeout=10)
+                time.sleep(1.5)
                 
                 if response.status_code == 200:
                     success_count += 1
@@ -146,8 +160,18 @@ def test_requests_with_headers(num_requests=10):
                 else:
                     print(f"Request {i+1}: {response.status_code}")
                         
+            except requests.exceptions.ConnectionError as e:
+                print(f"Request {i+1}: CONNECTION ERROR - {str(e)}")
+                print(f"Request {i+1}: Waiting 10 seconds before retry...")
+                time.sleep(10)
+            except requests.exceptions.Timeout as e:
+                print(f"Request {i+1}: TIMEOUT ERROR - {str(e)}")
+                print(f"Request {i+1}: Waiting 5 seconds before retry...")
+                time.sleep(5)
             except Exception as e:
-                print(f"Request {i+1}: ERROR")
+                print(f"Request {i+1}: ERROR - {str(e)}")
+                print(f"Request {i+1}: Waiting 5 seconds before retry...")
+                time.sleep(5)
     
     print(f"\n=== Results ===")
     print(f"Total requests: {num_requests} | Success: {success_count} | Failed: {num_requests - success_count}")
