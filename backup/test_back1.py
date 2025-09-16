@@ -5,7 +5,7 @@ import logging
 import csv
 import sys
 import argparse
-from graphql_queries import create_graphql_body, GRAPHQL_URL, get_graphql_headers, refresh_headers_and_cookies
+from graphql_queries import create_graphql_body, GRAPHQL_URL, GRAPHQL_HEADERS
 
 # 기본 설정
 BOUNDS_OFFSET = 0.004            # 검색 범위 (약 0.4km)
@@ -96,15 +96,7 @@ def fetch_restaurants_page(latitude, longitude, start_index):
     variables = create_variables(latitude, longitude, start_index)
     body = [create_graphql_body(variables)]
     
-    # 동적 헤더와 쿠키 가져오기
-    headers, cookies = get_graphql_headers()
-    
-    # requests.Session을 사용하여 쿠키 설정
-    with requests.Session() as session:
-        for name, value in cookies.items():
-            session.cookies.set(name, value)
-        
-        response = session.post(GRAPHQL_URL, headers=headers, json=body, timeout=30)
+    response = requests.post(GRAPHQL_URL, headers=GRAPHQL_HEADERS, json=body, timeout=30)
     
     if response.status_code != 200:
         return None, f"HTTP 에러 {response.status_code}"
@@ -378,9 +370,7 @@ def main():
                     
                     if error:
                         print(f"❌ 그리드 {grid_id} 수집 실패: {error}")
-                        print(f"🔄 {RETRY_DELAY}초 후 재시도... (헤더 새로고침)")
-                        # 헤더와 쿠키 새로고침
-                        refresh_headers_and_cookies()
+                        print(f"🔄 {RETRY_DELAY}초 후 재시도...")
                         time.sleep(RETRY_DELAY)
                         retry_count += 1
                         continue
@@ -397,9 +387,7 @@ def main():
                     
                 except Exception as e:
                     print(f"❌ 그리드 {grid_id} 처리 중 예외 발생: {e}")
-                    print(f"🔄 {RETRY_DELAY}초 후 재시도... (헤더 새로고침)")
-                    # 헤더와 쿠키 새로고침
-                    refresh_headers_and_cookies()
+                    print(f"🔄 {RETRY_DELAY}초 후 재시도...")
                     time.sleep(RETRY_DELAY)
                     retry_count += 1
         
