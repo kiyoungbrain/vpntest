@@ -43,7 +43,27 @@ def get_network_interface():
         return 'eth0'  # Default fallback
 
 def generate_random_mac():
-    """Generate a random MAC address"""
+    """Generate a random MAC address by changing only the last character"""
+    # Get current MAC address as base
+    try:
+        interface = get_network_interface()
+        result = subprocess.run(['ip', 'link', 'show', interface], 
+                              capture_output=True, text=True)
+        if result.returncode == 0:
+            # Extract current MAC address
+            mac_match = re.search(r'link/ether ([0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2})', result.stdout)
+            if mac_match:
+                current_mac = mac_match.group(1)
+                # Change only the last character (safest option)
+                # Keep first 5 parts, change only the last part
+                parts = current_mac.split(':')
+                # Change only the last 2 characters (last byte)
+                parts[5] = '%02x' % random.randint(0, 255)
+                return ':'.join(parts)
+    except:
+        pass
+    
+    # Fallback: generate completely random MAC
     return ':'.join(['%02x' % random.randint(0, 255) for _ in range(6)])
 
 def change_mac_address():
