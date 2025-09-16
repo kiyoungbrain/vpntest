@@ -31,7 +31,7 @@ BODY = {
 }
 
 def get_headers():
-    """기본 헤더 반환"""
+    """Return basic headers"""
     return {
         'accept': '*/*',
         'accept-language': 'ko-KR,ko;q=0.9,en;q=0.8',
@@ -42,10 +42,10 @@ def get_headers():
     }
 
 def test_requests_with_headers(num_requests=10):
-    """기본 헤더로 requests 테스트"""
+    """Test requests with basic headers"""
     success_count = 0
     
-    print("프로그램 시작...")
+    print("Starting program...")
     headers = get_headers()
     
     for i in range(num_requests):
@@ -59,23 +59,23 @@ def test_requests_with_headers(num_requests=10):
                 
                 if response.status_code == 200:
                     success_count += 1
-                    print(f"요청 {i+1}: 성공 (200) - {retry_count}번째 시도")
+                    print(f"Request {i+1}: Success (200) - {retry_count}th attempt")
                     break
                 else:
-                    print(f"요청 {i+1}: 실패 ({response.status_code}) - 재시도 중...")
-                    if retry_count >= 3:  # 최대 3번 재시도
-                        print(f"요청 {i+1}: 최대 재시도 횟수 초과")
+                    print(f"Request {i+1}: Failed ({response.status_code}) - Retrying...")
+                    if retry_count >= 3:  # Maximum 3 retries
+                        print(f"Request {i+1}: Maximum retry attempts exceeded")
                         break
                         
             except Exception as e:
-                print(f"요청 {i+1}: 예외 ({str(e)}) - {retry_count}번째 시도")
-                if retry_count >= 3:  # 최대 3번 재시도
-                    print(f"요청 {i+1}: 최대 재시도 횟수 초과")
+                print(f"Request {i+1}: Exception ({str(e)}) - {retry_count}th attempt")
+                if retry_count >= 3:  # Maximum 3 retries
+                    print(f"Request {i+1}: Maximum retry attempts exceeded")
                     break
     
-    print(f"\n=== 결과 ===")
-    print(f"총 요청: {num_requests} | 성공: {success_count} | 실패: {num_requests - success_count}")
-    print(f"성공률: {(success_count/num_requests)*100:.1f}%")
+    print(f"\n=== Results ===")
+    print(f"Total requests: {num_requests} | Success: {success_count} | Failed: {num_requests - success_count}")
+    print(f"Success rate: {(success_count/num_requests)*100:.1f}%")
 
 if __name__ == "__main__":
     test_requests_with_headers(num_requests=100000)
