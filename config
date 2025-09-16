@@ -21,6 +21,13 @@ python -m playwright install
 playwirght install
 python test_playwright_headers.py
 
+## exception (Ubuntu 22.04)
+sudo apt update
+sudo apt install software-properties-common -y
+sudo add-apt-repository ppa:deadsnakes/ppa -y
+sudo apt update
+sudo apt install python3.12 python3.12-venv python3.12-dev -y
+
 ##
 git init
 git remote add origin https://github.com/kiyoungbrain/vpntest.git

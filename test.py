@@ -57,16 +57,16 @@ def test_requests_with_headers(num_requests=10):
                 
                 if response.status_code == 200:
                     success_count += 1
-                    print("200")
+                    print(f"Request {i+1}: 200")
                     break
                 elif response.status_code == 429:
-                    print("429 - Waiting 15 seconds...")
+                    print(f"Request {i+1}: 429 - Waiting 15 seconds...")
                     time.sleep(15)
                 else:
-                    print(f"{response.status_code}")
+                    print(f"Request {i+1}: {response.status_code}")
                         
             except Exception as e:
-                print("ERROR")
+                print(f"Request {i+1}: ERROR")
     
     print(f"\n=== Results ===")
     print(f"Total requests: {num_requests} | Success: {success_count} | Failed: {num_requests - success_count}")
