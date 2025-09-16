@@ -133,7 +133,7 @@ if __name__ == "__main__":
             # Calculate remaining wait time
             remaining_wait = max(0, NUM_REQUESTS - execution_time)
             print(f"Waiting {remaining_wait:.1f} seconds before next batch...")
-            await asyncio.sleep(remaining_wait+1)
+            # await asyncio.sleep(remaining_wait+1)
     
     # Uncomment one of these to test:
     # asyncio.run(test_single())  # Test single request first
