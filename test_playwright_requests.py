@@ -136,5 +136,5 @@ if __name__ == "__main__":
             await asyncio.sleep(remaining_wait+1)
     
     # Uncomment one of these to test:
-    asyncio.run(test_single())  # Test single request first
-    # asyncio.run(main())  # Test parallel requests
+    # asyncio.run(test_single())  # Test single request first
+    asyncio.run(main())  # Test parallel requests
