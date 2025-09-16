@@ -27,9 +27,9 @@ def kill_existing_browsers():
                      capture_output=True, check=False)
         subprocess.run(['pkill', '-f', 'chromium-browser'], 
                      capture_output=True, check=False)
-        print("기존 브라우저 프로세스 정리 완료")
+        print("Existing browser processes cleaned up")
     except Exception as e:
-        print(f"브라우저 프로세스 정리 중 오류: {e}")
+        print(f"Error cleaning up browser processes: {e}")
 
 QUERY = """
 query getRestaurants {
@@ -54,8 +54,8 @@ BODY = {
 }
 
 async def get_real_browser_headers():
-    print("헤더/쿠키 초기화 중...")
-    """Playwright로 실제 네이버 맵에 접속해서 헤더와 쿠키 가져오기 - 3초 타임아웃으로 될 때까지 재시도"""
+    print("Initializing headers/cookies...")
+    """Get headers and cookies by accessing Naver Map with Playwright - retry until success with 3s timeout"""
     
     while True:
         try:
@@ -95,15 +95,15 @@ async def get_real_browser_headers():
                 return headers, cookies
                 
         except Exception as e:
-            print(f"브라우저 헤더 생성 실패: {e} - 재시도 중...")
+            print(f"Browser header generation failed: {e} - Retrying...")
             continue
 
 def test_requests_with_real_headers(num_requests=10):
-    """실제 브라우저 헤더로 requests 테스트 - 200이 될 때까지 재시도"""
+    """Test requests with real browser headers - retry until 200"""
     success_count = 0
     
-    # 프로그램 시작 전 기존 브라우저 프로세스 정리
-    print("프로그램 시작 - 기존 브라우저 프로세스 정리 중...")
+    # Clean up existing browser processes before starting
+    print("Starting program - cleaning up existing browser processes...")
     kill_existing_browsers()
     
     headers, cookies = asyncio.run(get_real_browser_headers())
@@ -124,21 +124,21 @@ def test_requests_with_real_headers(num_requests=10):
                     
                     if response.status_code == 200:
                         success_count += 1
-                        print(f"요청 {i+1}: 성공 (200) - {retry_count}번째 시도")
+                        print(f"Request {i+1}: Success (200) - {retry_count}th attempt")
                         break
                     else:
-                        print(f"요청 {i+1}: 실패 ({response.status_code}) - 브라우저 프로세스 정리 후 재시작...")
+                        print(f"Request {i+1}: Failed ({response.status_code}) - Restarting after browser cleanup...")
                         # kill_existing_browsers()
                         headers, cookies = asyncio.run(get_real_browser_headers())
                         
                 except Exception as e:
-                    print(f"요청 {i+1}: 예외 ({str(e)}) - {retry_count}번째 시도, 브라우저 프로세스 정리 후 재시작...")
+                    print(f"Request {i+1}: Exception ({str(e)}) - {retry_count}th attempt, restarting after browser cleanup...")
                     # kill_existing_browsers()
                     headers, cookies = asyncio.run(get_real_browser_headers())
     
-    print(f"\n=== 결과 ===")
-    print(f"총 요청: {num_requests} | 성공: {success_count} | 실패: {num_requests - success_count}")
-    print(f"성공률: {(success_count/num_requests)*100:.1f}%")
+    print(f"\n=== Results ===")
+    print(f"Total requests: {num_requests} | Success: {success_count} | Failed: {num_requests - success_count}")
+    print(f"Success rate: {(success_count/num_requests)*100:.1f}%")
 
 if __name__ == "__main__":
     test_requests_with_real_headers(num_requests=100000)

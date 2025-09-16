@@ -19,7 +19,6 @@ pip install playwright
 python -m playwright install-deps
 python -m playwright install
 playwirght install
-python test_playwright_headers.py
 
 ## exception (Ubuntu 22.04)
 sudo apt update
