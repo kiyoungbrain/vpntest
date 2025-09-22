@@ -76,12 +76,65 @@ def create_table(conn):
 def read_log_file(file_path):
     """로그 파일을 읽어서 DataFrame으로 변환"""
     try:
-        # CSV 파일로 읽기 (헤더가 있으므로)
-        df = pd.read_csv(file_path, encoding='utf-8-sig')
-        logger.info(f"로그 파일 읽기 완료: {len(df)}개 행")
-        return df
+        # 먼저 파일 크기 확인
+        import os
+        file_size = os.path.getsize(file_path)
+        logger.info(f"파일 크기: {file_size / 1024 / 1024:.2f} MB")
+        
+        # 파일이 작으면 한 번에 읽기 (중복제거를 위해)
+        if file_size < 50 * 1024 * 1024:  # 50MB 미만
+            logger.info("파일이 작아서 한 번에 읽기")
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            logger.info(f"로그 파일 읽기 완료: {len(df)}개 행")
+            return df
+        else:
+            # 큰 파일의 경우 청크로 읽되, 중복제거를 위해 ID만 먼저 수집
+            logger.info("큰 파일이므로 ID 기반 중복제거 방식 사용")
+            return read_large_file_with_dedup(file_path)
+            
     except Exception as e:
         logger.error(f"로그 파일 읽기 실패: {e}")
+        return None
+
+def read_large_file_with_dedup(file_path):
+    """큰 파일을 ID 기반으로 중복제거하며 읽기"""
+    try:
+        # 1단계: 모든 ID 수집
+        logger.info("1단계: 모든 restaurant_id 수집")
+        unique_ids = set()
+        chunk_size = 1000
+        
+        for chunk in pd.read_csv(file_path, encoding='utf-8-sig', chunksize=chunk_size):
+            valid_ids = chunk[chunk['id'].notna() & (chunk['id'] != 'N/A')]['id'].astype(str).str.strip()
+            unique_ids.update(valid_ids.tolist())
+            logger.info(f"ID 수집 중... 현재 {len(unique_ids)}개 고유 ID")
+        
+        logger.info(f"총 {len(unique_ids)}개 고유 ID 발견")
+        
+        # 2단계: 각 고유 ID에 대해 첫 번째 행만 선택
+        logger.info("2단계: 고유 ID별 첫 번째 행 선택")
+        selected_rows = []
+        
+        for chunk in pd.read_csv(file_path, encoding='utf-8-sig', chunksize=chunk_size):
+            # 유효한 ID만 필터링
+            chunk_clean = chunk[chunk['id'].notna() & (chunk['id'] != 'N/A')].copy()
+            chunk_clean['id'] = chunk_clean['id'].astype(str).str.strip()
+            
+            # 아직 선택되지 않은 ID들만 선택
+            new_ids = chunk_clean[~chunk_clean['id'].isin([row['id'] for row in selected_rows])]
+            if not new_ids.empty:
+                # 각 ID의 첫 번째 행만 선택
+                first_rows = new_ids.drop_duplicates(subset=['id'], keep='first')
+                selected_rows.extend(first_rows.to_dict('records'))
+                logger.info(f"선택된 행: {len(selected_rows)}개")
+        
+        # DataFrame으로 변환
+        df = pd.DataFrame(selected_rows)
+        logger.info(f"최종 데이터: {len(df)}개 행")
+        return df
+        
+    except Exception as e:
+        logger.error(f"큰 파일 읽기 실패: {e}")
         return None
 
 def remove_duplicates(df):
@@ -203,10 +256,10 @@ def insert_data_to_db(conn, df):
                 row_with_date = (today,) + tuple(row)
                 data_tuples.append(row_with_date)
             
-            # 배치 삽입
+            # 배치 삽입 (메모리 효율성을 위해 작은 배치 크기)
             execute_values(
                 cursor, insert_sql, data_tuples,
-                template=None, page_size=1000
+                template=None, page_size=100
             )
             conn.commit()
             logger.info(f"데이터 삽입 완료: {len(data_tuples)}개 행 (날짜: {today})")
@@ -220,41 +273,53 @@ def main():
     """메인 실행 함수"""
     logger.info("=== 네이버맵 데이터 중복 제거 및 DB 삽입 시작 ===")
     
-    # 1. 데이터베이스 연결 정보 가져오기
-    config = get_database_config()
-    
-    # 2. 데이터베이스 연결
-    conn = connect_to_database(config)
-    if not conn:
-        logger.error("데이터베이스에 연결할 수 없습니다.")
-        return
-    
     try:
+        # 1. 데이터베이스 연결 정보 가져오기
+        logger.info("1단계: 데이터베이스 연결 정보 가져오기")
+        config = get_database_config()
+        
+        # 2. 데이터베이스 연결
+        logger.info("2단계: 데이터베이스 연결 시도")
+        conn = connect_to_database(config)
+        if not conn:
+            logger.error("데이터베이스에 연결할 수 없습니다.")
+            return
+        
         # 3. 테이블 생성
+        logger.info("3단계: 테이블 생성/확인")
         create_table(conn)
         
         # 4. 로그 파일 읽기
+        logger.info("4단계: 로그 파일 읽기 시작")
         df = read_log_file('log_restaurants.log')
         if df is None:
             logger.error("로그 파일을 읽을 수 없습니다.")
             return
         
         # 5. 데이터 정리
+        logger.info("5단계: 데이터 정리 시작")
         df_cleaned = clean_data(df)
+        logger.info(f"데이터 정리 완료: {len(df_cleaned)}개 행")
         
         # 6. 중복 제거
+        logger.info("6단계: 중복 제거 시작")
         df_deduplicated = remove_duplicates(df_cleaned)
+        logger.info(f"중복 제거 완료: {len(df_deduplicated)}개 행")
         
         # 7. 데이터베이스에 삽입
+        logger.info("7단계: 데이터베이스 삽입 시작")
         insert_data_to_db(conn, df_deduplicated)
         
         logger.info("=== 모든 작업 완료 ===")
         
     except Exception as e:
         logger.error(f"작업 중 오류 발생: {e}")
+        import traceback
+        logger.error(f"상세 오류: {traceback.format_exc()}")
     finally:
-        conn.close()
-        logger.info("데이터베이스 연결 종료")
+        if 'conn' in locals():
+            conn.close()
+            logger.info("데이터베이스 연결 종료")
 
 if __name__ == "__main__":
     main()
