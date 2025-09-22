@@ -101,7 +101,7 @@ def process_large_file_direct_to_db(file_path, conn):
     try:
         logger.info("모든 데이터를 중복제거 없이 삽입 시작")
         total_inserted = 0
-        today = '2025-09-19'
+        today = '2025-09-21'
         chunk_size = 1000
         
         insert_sql = """
