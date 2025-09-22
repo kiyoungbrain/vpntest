@@ -10,32 +10,15 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def read_config():
-    """config 파일에서 데이터베이스 연결 정보 읽기"""
-    config = {}
-    try:
-        with open('backup/config', 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-            # 빈 줄과 주석 줄을 제외하고 실제 데이터만 추출
-            data_lines = []
-            for line in lines:
-                line = line.strip()
-                if line and not line.startswith('#'):
-                    data_lines.append(line)
-            
-            # 데이터베이스 정보는 처음 4줄
-            if len(data_lines) >= 4:
-                config['host'] = data_lines[0]
-                config['port'] = int(data_lines[1])
-                config['user'] = data_lines[2]
-                config['password'] = data_lines[3]
-                config['database'] = 'postgres'  # 기본 데이터베이스
-            else:
-                raise ValueError("Config 파일에 충분한 데이터가 없습니다.")
-        return config
-    except Exception as e:
-        logger.error(f"Config 파일 읽기 실패: {e}")
-        return None
+def get_database_config():
+    """데이터베이스 연결 정보 반환"""
+    return {
+        'host': 'kypostgresql.sldb.iwinv.net',
+        'port': 5432,
+        'user': 'postgres',
+        'password': 'wjsfir1234!@',
+        'database': 'postgres'
+    }
 
 def connect_to_database(config):
     """데이터베이스에 연결"""
@@ -170,6 +153,7 @@ def insert_data_to_db(conn, df):
     # 오늘 날짜 가져오기
     today = datetime.now().strftime('%Y-%m-%d')
     logger.info(f"데이터 삽입 날짜: {today}")
+
     
     # 컬럼명을 데이터베이스 스키마에 맞게 매핑
     column_mapping = {
@@ -235,11 +219,8 @@ def main():
     """메인 실행 함수"""
     logger.info("=== 네이버맵 데이터 중복 제거 및 DB 삽입 시작 ===")
     
-    # 1. Config 파일 읽기
-    config = read_config()
-    if not config:
-        logger.error("Config 파일을 읽을 수 없습니다.")
-        return
+    # 1. 데이터베이스 연결 정보 가져오기
+    config = get_database_config()
     
     # 2. 데이터베이스 연결
     conn = connect_to_database(config)
