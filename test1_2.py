@@ -152,6 +152,7 @@ def insert_data_to_db(conn, df):
     
     # 오늘 날짜 가져오기
     today = datetime.now().strftime('%Y-%m-%d')
+    today = '2025-09-19'
     logger.info(f"데이터 삽입 날짜: {today}")
 
     
