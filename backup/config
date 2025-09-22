@@ -1,11 +1,25 @@
-ssh root@115.68.176.238
-ssh root@115.68.178.226
-ssh root@115.68.178.11
-ssh root@115.68.177.213
-ssh root@115.68.176.241
+
+#iwinv db
+kypostgresql.sldb.iwinv.net
+5432
+postgres
+wjsfir1234!@
+
+psql -h kypostgresql.sldb.iwinv.net -p 5432 -U postgres -d postgres
+
+
+
+#iwinv server
+ssh root@115.68.216.193
+ssh root@115.68.216.81
+ssh root@49.247.172.70
+ssh root@49.247.173.64
 ssh root@115.68.177.65
+ssh root@115.68.176.241
 
 wjsfir1234!@#
+
+watch -n 2 ls -al
 
 
 
