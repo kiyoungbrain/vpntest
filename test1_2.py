@@ -99,17 +99,21 @@ def read_log_file(file_path):
 def process_large_file_direct_to_db(file_path, conn):
     """큰 파일을 직접 데이터베이스에 삽입 (메모리 효율적)"""
     try:
-        # 1단계: 고유 ID만 수집
+        # 1단계: 고유 ID만 수집 (더 안전한 방식)
         logger.info("1단계: 고유 restaurant_id 수집")
         unique_ids = set()
-        chunk_size = 2000
+        chunk_size = 1000  # 더 작은 청크로 안전하게
         
-        for i, chunk in enumerate(pd.read_csv(file_path, encoding='utf-8-sig', chunksize=chunk_size)):
-            valid_ids = chunk[chunk['id'].notna() & (chunk['id'] != 'N/A')]['id'].astype(str).str.strip()
-            unique_ids.update(valid_ids.tolist())
-            
-            if i % 100 == 0:
-                logger.info(f"ID 수집 중... 청크 {i+1}, 현재 {len(unique_ids)}개 고유 ID")
+        try:
+            for i, chunk in enumerate(pd.read_csv(file_path, encoding='utf-8-sig', chunksize=chunk_size, 
+                                                on_bad_lines='skip', error_bad_lines=False)):
+                valid_ids = chunk[chunk['id'].notna() & (chunk['id'] != 'N/A')]['id'].astype(str).str.strip()
+                unique_ids.update(valid_ids.tolist())
+                
+                if i % 100 == 0:
+                    logger.info(f"ID 수집 중... 청크 {i+1}, 현재 {len(unique_ids)}개 고유 ID")
+        except Exception as e:
+            logger.warning(f"ID 수집 중 일부 오류 발생: {e}, 계속 진행합니다.")
         
         logger.info(f"총 {len(unique_ids)}개 고유 ID 발견")
         
@@ -129,10 +133,12 @@ def process_large_file_direct_to_db(file_path, conn):
         """
         
         with conn.cursor() as cursor:
-            for i, chunk in enumerate(pd.read_csv(file_path, encoding='utf-8-sig', chunksize=chunk_size)):
-                # 유효한 ID만 필터링
-                chunk_clean = chunk[chunk['id'].notna() & (chunk['id'] != 'N/A')].copy()
-                chunk_clean['id'] = chunk_clean['id'].astype(str).str.strip()
+            try:
+                for i, chunk in enumerate(pd.read_csv(file_path, encoding='utf-8-sig', chunksize=chunk_size,
+                                                    on_bad_lines='skip', error_bad_lines=False)):
+                    # 유효한 ID만 필터링
+                    chunk_clean = chunk[chunk['id'].notna() & (chunk['id'] != 'N/A')].copy()
+                    chunk_clean['id'] = chunk_clean['id'].astype(str).str.strip()
                 
                 # 아직 처리되지 않은 ID들만 선택 (메모리 효율적)
                 data_tuples = []
@@ -174,14 +180,18 @@ def process_large_file_direct_to_db(file_path, conn):
                         conn.commit()
                         logger.info(f"청크 {i+1} 처리 완료, 총 삽입: {total_inserted}개 행")
                 
-                # 메모리 정리
-                if i % 100 == 0:
-                    import gc
-                    gc.collect()
-            
-            # 최종 커밋
-            conn.commit()
-            logger.info(f"최종 완료: 총 {total_inserted}개 행 삽입")
+                    # 메모리 정리
+                    if i % 100 == 0:
+                        import gc
+                        gc.collect()
+                
+                # 최종 커밋
+                conn.commit()
+                logger.info(f"최종 완료: 총 {total_inserted}개 행 삽입")
+                
+            except Exception as e:
+                logger.warning(f"데이터 처리 중 일부 오류 발생: {e}, 현재까지 {total_inserted}개 행 삽입됨")
+                conn.commit()  # 현재까지의 데이터라도 커밋
         
         return total_inserted
         
