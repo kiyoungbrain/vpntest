@@ -96,13 +96,31 @@ def read_log_file(file_path):
         logger.error(f"로그 파일 읽기 실패: {e}")
         return None
 
-def process_large_file_direct_to_db(file_path, conn):
-    """큰 파일을 직접 데이터베이스에 삽입 (중복제거 없이 모든 데이터)"""
+def process_large_file_direct_to_db(file_path, conn, today):
+    """큰 파일을 직접 데이터베이스에 삽입 (메모리 효율적)"""
     try:
-        logger.info("모든 데이터를 중복제거 없이 삽입 시작")
+        # 1단계: 고유 ID만 수집 (더 안전한 방식)
+        logger.info("1단계: 고유 restaurant_id 수집")
+        unique_ids = set()
+        chunk_size = 1000  # 더 작은 청크로 안전하게
+        
+        try:
+            for i, chunk in enumerate(pd.read_csv(file_path, encoding='utf-8-sig', chunksize=chunk_size, 
+                                                on_bad_lines='skip')):
+                valid_ids = chunk[chunk['id'].notna() & (chunk['id'] != 'N/A')]['id'].astype(str).str.strip()
+                unique_ids.update(valid_ids.tolist())
+                
+                if i % 100 == 0:
+                    logger.info(f"ID 수집 중... 청크 {i+1}, 현재 {len(unique_ids)}개 고유 ID")
+        except Exception as e:
+            logger.warning(f"ID 수집 중 일부 오류 발생: {e}, 계속 진행합니다.")
+        
+        logger.info(f"총 {len(unique_ids)}개 고유 ID 발견")
+        
+        # 2단계: 고유 ID별로 첫 번째 행을 바로 DB에 삽입
+        logger.info("2단계: 고유 ID별 첫 번째 행을 DB에 직접 삽입")
+        processed_ids = set()
         total_inserted = 0
-        today = '2025-09-21'
-        chunk_size = 1000
         
         insert_sql = """
         INSERT INTO navermap_temp (
@@ -117,43 +135,50 @@ def process_large_file_direct_to_db(file_path, conn):
             try:
                 for i, chunk in enumerate(pd.read_csv(file_path, encoding='utf-8-sig', chunksize=chunk_size,
                                                     on_bad_lines='skip')):
-                    # 모든 행을 처리 (중복제거 없이)
-                    data_tuples = []
-                    for _, row in chunk.iterrows():
-                        # 유효한 데이터만 처리
-                        if pd.notna(row.get('id')) and str(row.get('id')).strip() != '':
-                            data_tuple = (
-                                today,
-                                row.get('grid_id'),
-                                row.get('center_lat'),
-                                row.get('center_lon'),
-                                row.get('id'),
-                                row.get('x'),
-                                row.get('y'),
-                                row.get('businessCategory'),
-                                row.get('category'),
-                                row.get('phone'),
-                                str(row.get('detailCid')),
-                                row.get('markerId'),
-                                row.get('fullAddress'),
-                                str(row.get('categoryCodeList')),
-                                row.get('visitorReviewCount'),
-                                row.get('visitorReviewScore'),
-                                row.get('blogCafeReviewCount'),
-                                row.get('totalReviewCount'),
-                                row.get('name')
-                            )
-                            data_tuples.append(data_tuple)
-                    
-                    if data_tuples:
-                        # 배치 삽입
-                        execute_values(cursor, insert_sql, data_tuples, page_size=100)
-                        total_inserted += len(data_tuples)
+                    # 유효한 ID만 필터링
+                    chunk_clean = chunk[chunk['id'].notna() & (chunk['id'] != 'N/A')].copy()
+                    chunk_clean['id'] = chunk_clean['id'].astype(str).str.strip()
+                
+                # 아직 처리되지 않은 ID들만 선택 (메모리 효율적)
+                data_tuples = []
+                for _, row in chunk_clean.iterrows():
+                    row_id = row['id']
+                    if row_id not in processed_ids:
+                        processed_ids.add(row_id)
                         
-                        if i % 20 == 0:  # 더 자주 커밋
-                            conn.commit()
-                            logger.info(f"청크 {i+1} 처리 완료, 총 삽입: {total_inserted}개 행")
+                        # 바로 튜플로 변환 (DataFrame 생성하지 않음)
+                        data_tuple = (
+                            today,
+                            row.get('grid_id'),
+                            row.get('center_lat'),
+                            row.get('center_lon'),
+                            row.get('id'),
+                            row.get('x'),
+                            row.get('y'),
+                            row.get('businessCategory'),
+                            row.get('category'),
+                            row.get('phone'),
+                            str(row.get('detailCid')),
+                            row.get('markerId'),
+                            row.get('fullAddress'),
+                            str(row.get('categoryCodeList')),
+                            row.get('visitorReviewCount'),
+                            row.get('visitorReviewScore'),
+                            row.get('blogCafeReviewCount'),
+                            row.get('totalReviewCount'),
+                            row.get('name')
+                        )
+                        data_tuples.append(data_tuple)
+                
+                if data_tuples:
+                    # 배치 삽입
+                    execute_values(cursor, insert_sql, data_tuples, page_size=50)
+                    total_inserted += len(data_tuples)
                     
+                    if i % 20 == 0:  # 더 자주 커밋
+                        conn.commit()
+                        logger.info(f"청크 {i+1} 처리 완료, 총 삽입: {total_inserted}개 행")
+                
                     # 메모리 정리
                     if i % 100 == 0:
                         import gc
@@ -241,7 +266,7 @@ def insert_data_to_db(conn, df):
     
     # 오늘 날짜 가져오기
     today = datetime.now().strftime('%Y-%m-%d')
-    today = '2025-09-19'
+    today = '2025-09-21'
     logger.info(f"데이터 삽입 날짜: {today}")
 
     
@@ -325,9 +350,13 @@ def main():
         logger.info("3단계: 테이블 생성/확인")
         create_table(conn)
         
-        # 4. 로그 파일 처리 (무조건 직접 DB 삽입)
-        logger.info("4단계: 로그 파일 직접 DB 삽입 시작")
-        total_inserted = process_large_file_direct_to_db('log_restaurants.log', conn)
+        # 4. 날짜 입력받기
+        today = input("날짜를 입력하세요 (YYYY-MM-DD): ")
+        logger.info(f"입력된 날짜: {today}")
+        
+        # 5. 로그 파일 처리 (무조건 직접 DB 삽입)
+        logger.info("5단계: 로그 파일 직접 DB 삽입 시작")
+        total_inserted = process_large_file_direct_to_db('log_restaurants.log', conn, today)
         logger.info(f"총 {total_inserted}개 행이 데이터베이스에 삽입되었습니다.")
         
         logger.info("=== 모든 작업 완료 ===")
