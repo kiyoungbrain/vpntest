@@ -96,46 +96,98 @@ def read_log_file(file_path):
         logger.error(f"로그 파일 읽기 실패: {e}")
         return None
 
-def read_large_file_with_dedup(file_path):
-    """큰 파일을 ID 기반으로 중복제거하며 읽기"""
+def process_large_file_direct_to_db(file_path, conn):
+    """큰 파일을 직접 데이터베이스에 삽입 (메모리 효율적)"""
     try:
-        # 1단계: 모든 ID 수집
-        logger.info("1단계: 모든 restaurant_id 수집")
+        # 1단계: 고유 ID만 수집
+        logger.info("1단계: 고유 restaurant_id 수집")
         unique_ids = set()
-        chunk_size = 1000
+        chunk_size = 2000
         
-        for chunk in pd.read_csv(file_path, encoding='utf-8-sig', chunksize=chunk_size):
+        for i, chunk in enumerate(pd.read_csv(file_path, encoding='utf-8-sig', chunksize=chunk_size)):
             valid_ids = chunk[chunk['id'].notna() & (chunk['id'] != 'N/A')]['id'].astype(str).str.strip()
             unique_ids.update(valid_ids.tolist())
-            logger.info(f"ID 수집 중... 현재 {len(unique_ids)}개 고유 ID")
+            
+            if i % 100 == 0:
+                logger.info(f"ID 수집 중... 청크 {i+1}, 현재 {len(unique_ids)}개 고유 ID")
         
         logger.info(f"총 {len(unique_ids)}개 고유 ID 발견")
         
-        # 2단계: 각 고유 ID에 대해 첫 번째 행만 선택
-        logger.info("2단계: 고유 ID별 첫 번째 행 선택")
-        selected_rows = []
+        # 2단계: 고유 ID별로 첫 번째 행을 바로 DB에 삽입
+        logger.info("2단계: 고유 ID별 첫 번째 행을 DB에 직접 삽입")
+        processed_ids = set()
+        total_inserted = 0
+        today = '2025-09-19'
         
-        for chunk in pd.read_csv(file_path, encoding='utf-8-sig', chunksize=chunk_size):
-            # 유효한 ID만 필터링
-            chunk_clean = chunk[chunk['id'].notna() & (chunk['id'] != 'N/A')].copy()
-            chunk_clean['id'] = chunk_clean['id'].astype(str).str.strip()
+        insert_sql = """
+        INSERT INTO navermap_temp (
+            date, grid_id, center_lat, center_lon, restaurant_id, x, y,
+            business_category, category, phone, detail_cid, marker_id,
+            full_address, category_code_list, visitor_review_count,
+            visitor_review_score, blog_cafe_review_count, total_review_count, name
+        ) VALUES %s
+        """
+        
+        with conn.cursor() as cursor:
+            for i, chunk in enumerate(pd.read_csv(file_path, encoding='utf-8-sig', chunksize=chunk_size)):
+                # 유효한 ID만 필터링
+                chunk_clean = chunk[chunk['id'].notna() & (chunk['id'] != 'N/A')].copy()
+                chunk_clean['id'] = chunk_clean['id'].astype(str).str.strip()
+                
+                # 아직 처리되지 않은 ID들만 선택 (메모리 효율적)
+                data_tuples = []
+                for _, row in chunk_clean.iterrows():
+                    row_id = row['id']
+                    if row_id not in processed_ids:
+                        processed_ids.add(row_id)
+                        
+                        # 바로 튜플로 변환 (DataFrame 생성하지 않음)
+                        data_tuple = (
+                            today,
+                            row.get('grid_id'),
+                            row.get('center_lat'),
+                            row.get('center_lon'),
+                            row.get('id'),
+                            row.get('x'),
+                            row.get('y'),
+                            row.get('businessCategory'),
+                            row.get('category'),
+                            row.get('phone'),
+                            str(row.get('detailCid')),
+                            row.get('markerId'),
+                            row.get('fullAddress'),
+                            str(row.get('categoryCodeList')),
+                            row.get('visitorReviewCount'),
+                            row.get('visitorReviewScore'),
+                            row.get('blogCafeReviewCount'),
+                            row.get('totalReviewCount'),
+                            row.get('name')
+                        )
+                        data_tuples.append(data_tuple)
+                
+                if data_tuples:
+                    # 배치 삽입
+                    execute_values(cursor, insert_sql, data_tuples, page_size=50)
+                    total_inserted += len(data_tuples)
+                    
+                    if i % 20 == 0:  # 더 자주 커밋
+                        conn.commit()
+                        logger.info(f"청크 {i+1} 처리 완료, 총 삽입: {total_inserted}개 행")
+                
+                # 메모리 정리
+                if i % 100 == 0:
+                    import gc
+                    gc.collect()
             
-            # 아직 선택되지 않은 ID들만 선택
-            new_ids = chunk_clean[~chunk_clean['id'].isin([row['id'] for row in selected_rows])]
-            if not new_ids.empty:
-                # 각 ID의 첫 번째 행만 선택
-                first_rows = new_ids.drop_duplicates(subset=['id'], keep='first')
-                selected_rows.extend(first_rows.to_dict('records'))
-                logger.info(f"선택된 행: {len(selected_rows)}개")
+            # 최종 커밋
+            conn.commit()
+            logger.info(f"최종 완료: 총 {total_inserted}개 행 삽입")
         
-        # DataFrame으로 변환
-        df = pd.DataFrame(selected_rows)
-        logger.info(f"최종 데이터: {len(df)}개 행")
-        return df
+        return total_inserted
         
     except Exception as e:
-        logger.error(f"큰 파일 읽기 실패: {e}")
-        return None
+        logger.error(f"큰 파일 처리 실패: {e}")
+        return 0
 
 def remove_duplicates(df):
     """중복 제거 - restaurant_id를 기준으로 중복 제거"""
@@ -289,26 +341,10 @@ def main():
         logger.info("3단계: 테이블 생성/확인")
         create_table(conn)
         
-        # 4. 로그 파일 읽기
-        logger.info("4단계: 로그 파일 읽기 시작")
-        df = read_log_file('log_restaurants.log')
-        if df is None:
-            logger.error("로그 파일을 읽을 수 없습니다.")
-            return
-        
-        # 5. 데이터 정리
-        logger.info("5단계: 데이터 정리 시작")
-        df_cleaned = clean_data(df)
-        logger.info(f"데이터 정리 완료: {len(df_cleaned)}개 행")
-        
-        # 6. 중복 제거
-        logger.info("6단계: 중복 제거 시작")
-        df_deduplicated = remove_duplicates(df_cleaned)
-        logger.info(f"중복 제거 완료: {len(df_deduplicated)}개 행")
-        
-        # 7. 데이터베이스에 삽입
-        logger.info("7단계: 데이터베이스 삽입 시작")
-        insert_data_to_db(conn, df_deduplicated)
+        # 4. 로그 파일 처리 (무조건 직접 DB 삽입)
+        logger.info("4단계: 로그 파일 직접 DB 삽입 시작")
+        total_inserted = process_large_file_direct_to_db('log_restaurants.log', conn)
+        logger.info(f"총 {total_inserted}개 행이 데이터베이스에 삽입되었습니다.")
         
         logger.info("=== 모든 작업 완료 ===")
         
