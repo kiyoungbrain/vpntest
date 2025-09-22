@@ -106,7 +106,7 @@ def process_large_file_direct_to_db(file_path, conn):
         
         try:
             for i, chunk in enumerate(pd.read_csv(file_path, encoding='utf-8-sig', chunksize=chunk_size, 
-                                                on_bad_lines='skip', error_bad_lines=False)):
+                                                on_bad_lines='skip')):
                 valid_ids = chunk[chunk['id'].notna() & (chunk['id'] != 'N/A')]['id'].astype(str).str.strip()
                 unique_ids.update(valid_ids.tolist())
                 
@@ -135,7 +135,7 @@ def process_large_file_direct_to_db(file_path, conn):
         with conn.cursor() as cursor:
             try:
                 for i, chunk in enumerate(pd.read_csv(file_path, encoding='utf-8-sig', chunksize=chunk_size,
-                                                    on_bad_lines='skip', error_bad_lines=False)):
+                                                    on_bad_lines='skip')):
                     # 유효한 ID만 필터링
                     chunk_clean = chunk[chunk['id'].notna() & (chunk['id'] != 'N/A')].copy()
                     chunk_clean['id'] = chunk_clean['id'].astype(str).str.strip()
