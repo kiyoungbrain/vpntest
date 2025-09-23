@@ -344,7 +344,7 @@ def main():
         create_table(conn)
         
         # 4. 날짜 설정
-        today = '2025-09-21'
+        today = '2025-09-19'
         logger.info(f"사용할 날짜: {today}")
         
         # 5. 로그 파일 처리 (무조건 직접 DB 삽입)
