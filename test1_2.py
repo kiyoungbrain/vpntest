@@ -97,11 +97,20 @@ def read_log_file(file_path):
         return None
 
 def process_large_file_direct_to_db(file_path, conn, today):
-    """큰 파일을 직접 데이터베이스에 삽입 (중복제거 없이 모든 데이터)"""
+    """큰 파일을 직접 데이터베이스에 삽입 (메모리 효율적)"""
     try:
-        logger.info("모든 데이터를 중복제거 없이 삽입 시작")
-        total_inserted = 0
+        # 먼저 전체 파일 크기와 예상 청크 수 계산
+        import os
+        file_size = os.path.getsize(file_path)
         chunk_size = 1000
+        estimated_total_chunks = (file_size // (chunk_size * 100)) + 1  # 대략적인 추정
+        
+        logger.info(f"파일 크기: {file_size / 1024 / 1024:.2f} MB")
+        logger.info(f"예상 총 청크 수: 약 {estimated_total_chunks}개")
+        
+        # 중복 제거를 위한 processed_ids set (전역적으로 유지)
+        processed_ids = set()
+        total_inserted = 0
         
         insert_sql = """
         INSERT INTO navermap_temp (
@@ -112,15 +121,24 @@ def process_large_file_direct_to_db(file_path, conn, today):
         ) VALUES %s
         """
         
+        logger.info("파일을 한 번만 읽으면서 중복 제거 및 DB 삽입 시작")
+        
         with conn.cursor() as cursor:
             try:
                 for i, chunk in enumerate(pd.read_csv(file_path, encoding='utf-8-sig', chunksize=chunk_size,
                                                     on_bad_lines='skip')):
-                    # 모든 행을 처리 (중복제거 없이)
+                    # 유효한 ID만 필터링
+                    chunk_clean = chunk[chunk['id'].notna() & (chunk['id'] != 'N/A')].copy()
+                    chunk_clean['id'] = chunk_clean['id'].astype(str).str.strip()
+                
+                    # 아직 처리되지 않은 ID들만 선택 (메모리 효율적)
                     data_tuples = []
-                    for _, row in chunk.iterrows():
-                        # 유효한 데이터만 처리
-                        if pd.notna(row.get('id')) and str(row.get('id')).strip() != '':
+                    for _, row in chunk_clean.iterrows():
+                        row_id = row['id']
+                        if row_id not in processed_ids:
+                            processed_ids.add(row_id)
+                            
+                            # 바로 튜플로 변환 (DataFrame 생성하지 않음)
                             data_tuple = (
                                 today,
                                 row.get('grid_id'),
@@ -143,16 +161,20 @@ def process_large_file_direct_to_db(file_path, conn, today):
                                 row.get('name')
                             )
                             data_tuples.append(data_tuple)
-                
-                if data_tuples:
-                    # 배치 삽입
-                    execute_values(cursor, insert_sql, data_tuples, page_size=50)
-                    total_inserted += len(data_tuples)
                     
-                    if i % 20 == 0:  # 더 자주 커밋
+                    if data_tuples:
+                        # 배치 삽입
+                        execute_values(cursor, insert_sql, data_tuples, page_size=50)
+                        total_inserted += len(data_tuples)
+                    
+                    # 진행률 표시 (더 자주)
+                    if i % 10 == 0:  # 10청크마다 진행률 표시
+                        progress = (i + 1) / estimated_total_chunks * 100
+                        logger.info(f"처리 중... 청크 {i+1}/{estimated_total_chunks} ({progress:.1f}%), 총 삽입: {total_inserted}개 행, 고유 ID: {len(processed_ids)}개")
+                        
+                        # 커밋도 더 자주
                         conn.commit()
-                        logger.info(f"청크 {i+1} 처리 완료, 총 삽입: {total_inserted}개 행")
-                
+                    
                     # 메모리 정리
                     if i % 100 == 0:
                         import gc
@@ -160,7 +182,7 @@ def process_large_file_direct_to_db(file_path, conn, today):
                 
                 # 최종 커밋
                 conn.commit()
-                logger.info(f"최종 완료: 총 {total_inserted}개 행 삽입")
+                logger.info(f"최종 완료: 총 {total_inserted}개 행 삽입 (100.0%), 고유 ID: {len(processed_ids)}개")
                 
             except Exception as e:
                 logger.warning(f"데이터 처리 중 일부 오류 발생: {e}, 현재까지 {total_inserted}개 행 삽입됨")
@@ -322,7 +344,6 @@ def main():
         create_table(conn)
         
         # 4. 날짜 설정
-        today = datetime.now().strftime('%Y-%m-%d')
         today = '2025-09-21'
         logger.info(f"사용할 날짜: {today}")
         
