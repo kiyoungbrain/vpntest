@@ -258,15 +258,12 @@ def clean_data(df):
     
     return df
 
-def insert_data_to_db(conn, df):
+def insert_data_to_db(conn, df, today):
     """데이터베이스에 데이터 삽입"""
     if df is None or df.empty:
         logger.warning("삽입할 데이터가 없습니다.")
         return
     
-    # 오늘 날짜 가져오기
-    today = datetime.now().strftime('%Y-%m-%d')
-    today = '2025-09-21'
     logger.info(f"데이터 삽입 날짜: {today}")
 
     
@@ -350,9 +347,10 @@ def main():
         logger.info("3단계: 테이블 생성/확인")
         create_table(conn)
         
-        # 4. 날짜 입력받기
-        today = input("날짜를 입력하세요 (YYYY-MM-DD): ")
-        logger.info(f"입력된 날짜: {today}")
+        # 4. 날짜 설정
+        today = datetime.now().strftime('%Y-%m-%d')
+        today = '2025-09-21'
+        logger.info(f"사용할 날짜: {today}")
         
         # 5. 로그 파일 처리 (무조건 직접 DB 삽입)
         logger.info("5단계: 로그 파일 직접 DB 삽입 시작")
