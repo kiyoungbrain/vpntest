@@ -1,4 +1,5 @@
-test1_3_main.py
+test1_3_upToBigquery.py
+test1_4_delete_Postgresql.py
 gcp_iam_svc_key_kiyoung.json
 
 # Python

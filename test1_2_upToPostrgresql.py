@@ -99,18 +99,17 @@ def read_log_file(file_path):
 def process_large_file_direct_to_db(file_path, conn, today):
     """큰 파일을 직접 데이터베이스에 삽입 (메모리 효율적)"""
     try:
-        # 먼저 전체 파일 크기와 예상 청크 수 계산
+        # 먼저 전체 파일 크기 확인
         import os
         file_size = os.path.getsize(file_path)
         chunk_size = 1000
-        estimated_total_chunks = (file_size // (chunk_size * 100)) + 1  # 대략적인 추정
         
         logger.info(f"파일 크기: {file_size / 1024 / 1024:.2f} MB")
-        logger.info(f"예상 총 청크 수: 약 {estimated_total_chunks}개")
         
         # 중복 제거를 위한 processed_ids set (전역적으로 유지)
         processed_ids = set()
         total_inserted = 0
+        total_chunks_processed = 0
         
         insert_sql = """
         INSERT INTO navermap_temp (
@@ -127,6 +126,8 @@ def process_large_file_direct_to_db(file_path, conn, today):
             try:
                 for i, chunk in enumerate(pd.read_csv(file_path, encoding='utf-8-sig', chunksize=chunk_size,
                                                     on_bad_lines='skip')):
+                    total_chunks_processed = i + 1
+                    
                     # 유효한 ID만 필터링
                     chunk_clean = chunk[chunk['id'].notna() & (chunk['id'] != 'N/A')].copy()
                     chunk_clean['id'] = chunk_clean['id'].astype(str).str.strip()
@@ -169,8 +170,9 @@ def process_large_file_direct_to_db(file_path, conn, today):
                     
                     # 진행률 표시 (더 자주)
                     if i % 10 == 0:  # 10청크마다 진행률 표시
-                        progress = (i + 1) / estimated_total_chunks * 100
-                        logger.info(f"처리 중... 청크 {i+1}/{estimated_total_chunks} ({progress:.1f}%), 총 삽입: {total_inserted}개 행, 고유 ID: {len(processed_ids)}개")
+                        # 파일 크기 기반 대략적 진행률 (정확하지 않지만 참고용)
+                        estimated_progress = min(100.0, (file_size * (i + 1) / (file_size * 1.2)) * 100)
+                        logger.info(f"처리 중... 청크 {i+1}, 총 삽입: {total_inserted}개 행, 고유 ID: {len(processed_ids)}개")
                         
                         # 커밋도 더 자주
                         conn.commit()
@@ -182,7 +184,7 @@ def process_large_file_direct_to_db(file_path, conn, today):
                 
                 # 최종 커밋
                 conn.commit()
-                logger.info(f"최종 완료: 총 {total_inserted}개 행 삽입 (100.0%), 고유 ID: {len(processed_ids)}개")
+                logger.info(f"최종 완료: 총 {total_inserted}개 행 삽입, 총 {total_chunks_processed}개 청크 처리됨, 고유 ID: {len(processed_ids)}개")
                 
             except Exception as e:
                 logger.warning(f"데이터 처리 중 일부 오류 발생: {e}, 현재까지 {total_inserted}개 행 삽입됨")
