@@ -1,4 +1,6 @@
 
+(iwinv) ----------------------------
+
 #iwinv db
 kypostgresql.sldb.iwinv.net
 5432
@@ -6,7 +8,6 @@ postgres
 wjsfir1234!@
 
 psql -h kypostgresql.sldb.iwinv.net -p 5432 -U postgres -d postgres
-
 
 
 #iwinv server
@@ -108,7 +109,7 @@ frpa2   France (FR)             France - Paris - 2
 frma                            France - Marseille
 
 
-----------------------------
+(내부서버) ----------------------------
 
 192.168.1.99 // kiyoungfnb // wjsfir1234!@
 192.168.1.124 // kiyoung1 : 쿠팡(한국2)
