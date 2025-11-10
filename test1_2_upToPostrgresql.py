@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import psycopg2
 from psycopg2.extras import execute_values
 import logging
@@ -97,11 +98,19 @@ def read_log_file(file_path):
         return None
 
 def safe_convert_to_numeric(value, default=None):
-    """안전하게 숫자로 변환"""
+    """안전하게 숫자로 변환 (numpy 타입을 Python 기본 타입으로 변환)"""
     if pd.isna(value) or value is None:
         return default
+    
+    # numpy 타입을 Python 기본 타입으로 변환
+    if isinstance(value, (np.integer, np.int64, np.int32, np.int16, np.int8)):
+        return int(value)
+    if isinstance(value, (np.floating, np.float64, np.float32, np.float16)):
+        return float(value)
+    
     if isinstance(value, (int, float)):
         return value
+    
     if isinstance(value, str):
         # 컬럼명이 값으로 들어온 경우 필터링
         if value.strip() in ['grid_id', 'center_lat', 'center_lon', 'id', 'x', 'y', 'markerId', 
@@ -111,18 +120,48 @@ def safe_convert_to_numeric(value, default=None):
                             'totalReviewCount', 'name']:
             return default
         try:
-            return pd.to_numeric(value, errors='coerce')
+            numeric_value = pd.to_numeric(value, errors='coerce')
+            if pd.isna(numeric_value):
+                return default
+            # numpy 타입이면 Python 기본 타입으로 변환
+            if isinstance(numeric_value, (np.integer, np.int64, np.int32, np.int16, np.int8)):
+                return int(numeric_value)
+            if isinstance(numeric_value, (np.floating, np.float64, np.float32, np.float16)):
+                return float(numeric_value)
+            return numeric_value
         except:
             return default
+    
     try:
-        return pd.to_numeric(value, errors='coerce')
+        numeric_value = pd.to_numeric(value, errors='coerce')
+        if pd.isna(numeric_value):
+            return default
+        # numpy 타입이면 Python 기본 타입으로 변환
+        if isinstance(numeric_value, (np.integer, np.int64, np.int32, np.int16, np.int8)):
+            return int(numeric_value)
+        if isinstance(numeric_value, (np.floating, np.float64, np.float32, np.float16)):
+            return float(numeric_value)
+        return numeric_value
     except:
         return default
 
 def safe_convert_to_string(value, default=None):
-    """안전하게 문자열로 변환"""
+    """안전하게 문자열로 변환 (numpy 타입 처리)"""
     if pd.isna(value) or value is None:
         return default
+    
+    # numpy 타입을 먼저 Python 기본 타입으로 변환
+    if isinstance(value, (np.integer, np.int64, np.int32, np.int16, np.int8)):
+        value = int(value)
+    elif isinstance(value, (np.floating, np.float64, np.float32, np.float16)):
+        value = float(value)
+    elif isinstance(value, np.ndarray):
+        # numpy 배열인 경우 첫 번째 요소 사용
+        if len(value) > 0:
+            value = value[0]
+        else:
+            return default
+    
     if isinstance(value, str):
         # 컬럼명이 값으로 들어온 경우 필터링
         if value.strip() in ['grid_id', 'center_lat', 'center_lon', 'id', 'x', 'y', 'markerId', 
@@ -132,7 +171,27 @@ def safe_convert_to_string(value, default=None):
                             'totalReviewCount', 'name']:
             return default
         return value
+    
     return str(value) if value is not None else default
+
+def ensure_python_types(data_tuple):
+    """튜플의 모든 값을 Python 기본 타입으로 변환 (numpy 타입 제거)"""
+    result = []
+    for value in data_tuple:
+        if pd.isna(value) or value is None:
+            result.append(None)
+        elif isinstance(value, (np.integer, np.int64, np.int32, np.int16, np.int8)):
+            result.append(int(value))
+        elif isinstance(value, (np.floating, np.float64, np.float32, np.float16)):
+            result.append(float(value))
+        elif isinstance(value, np.ndarray):
+            if len(value) > 0:
+                result.append(ensure_python_types((value[0],))[0])
+            else:
+                result.append(None)
+        else:
+            result.append(value)
+    return tuple(result)
 
 def process_large_file_direct_to_db(file_path, conn, today):
     """큰 파일을 직접 데이터베이스에 삽입 (메모리 효율적)"""
@@ -229,6 +288,8 @@ def process_large_file_direct_to_db(file_path, conn, today):
                                     safe_convert_to_string(row.get('totalReviewCount')),
                                     safe_convert_to_string(row.get('name'))
                                 )
+                                # numpy 타입을 Python 기본 타입으로 최종 변환
+                                data_tuple = ensure_python_types(data_tuple)
                                 data_tuples.append(data_tuple)
                         except Exception as row_error:
                             skipped_rows += 1
