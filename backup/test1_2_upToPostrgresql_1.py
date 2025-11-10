@@ -96,44 +96,6 @@ def read_log_file(file_path):
         logger.error(f"로그 파일 읽기 실패: {e}")
         return None
 
-def safe_convert_to_numeric(value, default=None):
-    """안전하게 숫자로 변환"""
-    if pd.isna(value) or value is None:
-        return default
-    if isinstance(value, (int, float)):
-        return value
-    if isinstance(value, str):
-        # 컬럼명이 값으로 들어온 경우 필터링
-        if value.strip() in ['grid_id', 'center_lat', 'center_lon', 'id', 'x', 'y', 'markerId', 
-                            'restaurant_id', 'marker_id', 'businessCategory', 'category', 
-                            'phone', 'detailCid', 'fullAddress', 'categoryCodeList',
-                            'visitorReviewCount', 'visitorReviewScore', 'blogCafeReviewCount',
-                            'totalReviewCount', 'name']:
-            return default
-        try:
-            return pd.to_numeric(value, errors='coerce')
-        except:
-            return default
-    try:
-        return pd.to_numeric(value, errors='coerce')
-    except:
-        return default
-
-def safe_convert_to_string(value, default=None):
-    """안전하게 문자열로 변환"""
-    if pd.isna(value) or value is None:
-        return default
-    if isinstance(value, str):
-        # 컬럼명이 값으로 들어온 경우 필터링
-        if value.strip() in ['grid_id', 'center_lat', 'center_lon', 'id', 'x', 'y', 'markerId', 
-                            'restaurant_id', 'marker_id', 'businessCategory', 'category', 
-                            'phone', 'detailCid', 'fullAddress', 'categoryCodeList',
-                            'visitorReviewCount', 'visitorReviewScore', 'blogCafeReviewCount',
-                            'totalReviewCount', 'name']:
-            return default
-        return value
-    return str(value) if value is not None else default
-
 def process_large_file_direct_to_db(file_path, conn, today):
     """큰 파일을 직접 데이터베이스에 삽입 (메모리 효율적)"""
     try:
@@ -148,7 +110,6 @@ def process_large_file_direct_to_db(file_path, conn, today):
         processed_ids = set()
         total_inserted = 0
         total_chunks_processed = 0
-        skipped_rows = 0
         
         insert_sql = """
         INSERT INTO navermap_temp (
@@ -167,95 +128,51 @@ def process_large_file_direct_to_db(file_path, conn, today):
                                                     on_bad_lines='skip')):
                     total_chunks_processed = i + 1
                     
-                    # 헤더 행이 데이터로 들어오는 것을 방지 (첫 번째 청크에서만 체크)
-                    if i == 0 and len(chunk) > 0:
-                        # 첫 번째 행이 헤더인지 확인
-                        first_row_id = str(chunk.iloc[0].get('id', '')).strip()
-                        if first_row_id in ['id', 'grid_id', 'center_lat', 'center_lon', 'restaurant_id']:
-                            logger.warning("헤더 행이 데이터로 감지됨. 첫 번째 행을 건너뜁니다.")
-                            chunk = chunk.iloc[1:].copy()
-                    
                     # 유효한 ID만 필터링
-                    chunk_clean = chunk[
-                        (chunk['id'].notna()) & 
-                        (chunk['id'] != 'N/A') & 
-                        (chunk['id'] != 'None') &
-                        (chunk['id'] != '') &
-                        (chunk['id'].astype(str).str.strip() != '')
-                    ].copy()
-                    
-                    if len(chunk_clean) == 0:
-                        continue
-                    
+                    chunk_clean = chunk[chunk['id'].notna() & (chunk['id'] != 'N/A')].copy()
                     chunk_clean['id'] = chunk_clean['id'].astype(str).str.strip()
                 
                     # 아직 처리되지 않은 ID들만 선택 (메모리 효율적)
                     data_tuples = []
                     for _, row in chunk_clean.iterrows():
-                        try:
-                            row_id = str(row['id']).strip()
+                        row_id = row['id']
+                        if row_id not in processed_ids:
+                            processed_ids.add(row_id)
                             
-                            # ID가 컬럼명인 경우 스킵
-                            if row_id in ['id', 'grid_id', 'center_lat', 'center_lon', 'restaurant_id', 
-                                         'markerId', 'marker_id', 'businessCategory', 'category',
-                                         'phone', 'detailCid', 'fullAddress', 'categoryCodeList',
-                                         'visitorReviewCount', 'visitorReviewScore', 'blogCafeReviewCount',
-                                         'totalReviewCount', 'name']:
-                                skipped_rows += 1
-                                continue
-                            
-                            if row_id not in processed_ids:
-                                processed_ids.add(row_id)
-                                
-                                # 타입 변환 및 검증을 포함한 튜플 생성
-                                data_tuple = (
-                                    today,
-                                    safe_convert_to_numeric(row.get('grid_id')),
-                                    safe_convert_to_numeric(row.get('center_lat')),
-                                    safe_convert_to_numeric(row.get('center_lon')),
-                                    safe_convert_to_numeric(row.get('id')),  # restaurant_id
-                                    safe_convert_to_numeric(row.get('x')),
-                                    safe_convert_to_numeric(row.get('y')),
-                                    safe_convert_to_string(row.get('businessCategory')),
-                                    safe_convert_to_string(row.get('category')),
-                                    safe_convert_to_string(row.get('phone')),
-                                    safe_convert_to_string(row.get('detailCid')),
-                                    safe_convert_to_numeric(row.get('markerId')),
-                                    safe_convert_to_string(row.get('fullAddress')),
-                                    safe_convert_to_string(row.get('categoryCodeList')),
-                                    safe_convert_to_string(row.get('visitorReviewCount')),
-                                    safe_convert_to_string(row.get('visitorReviewScore')),
-                                    safe_convert_to_string(row.get('blogCafeReviewCount')),
-                                    safe_convert_to_string(row.get('totalReviewCount')),
-                                    safe_convert_to_string(row.get('name'))
-                                )
-                                data_tuples.append(data_tuple)
-                        except Exception as row_error:
-                            skipped_rows += 1
-                            if skipped_rows % 100 == 0:
-                                logger.warning(f"행 처리 중 오류 발생 (누적 {skipped_rows}개 건너뜀): {row_error}")
-                            continue
+                            # 바로 튜플로 변환 (DataFrame 생성하지 않음)
+                            data_tuple = (
+                                today,
+                                row.get('grid_id'),
+                                row.get('center_lat'),
+                                row.get('center_lon'),
+                                row.get('id'),
+                                row.get('x'),
+                                row.get('y'),
+                                row.get('businessCategory'),
+                                row.get('category'),
+                                row.get('phone'),
+                                str(row.get('detailCid')),
+                                row.get('markerId'),
+                                row.get('fullAddress'),
+                                str(row.get('categoryCodeList')),
+                                row.get('visitorReviewCount'),
+                                row.get('visitorReviewScore'),
+                                row.get('blogCafeReviewCount'),
+                                row.get('totalReviewCount'),
+                                row.get('name')
+                            )
+                            data_tuples.append(data_tuple)
                     
                     if data_tuples:
-                        try:
-                            # 배치 삽입
-                            execute_values(cursor, insert_sql, data_tuples, page_size=50)
-                            total_inserted += len(data_tuples)
-                        except Exception as insert_error:
-                            logger.warning(f"배치 삽입 중 오류 발생: {insert_error}")
-                            # 개별 삽입으로 재시도
-                            for data_tuple in data_tuples:
-                                try:
-                                    execute_values(cursor, insert_sql, [data_tuple], page_size=1)
-                                    total_inserted += 1
-                                except Exception as single_error:
-                                    skipped_rows += 1
-                                    if skipped_rows % 100 == 0:
-                                        logger.warning(f"개별 행 삽입 실패 (누적 {skipped_rows}개 건너뜀): {single_error}")
+                        # 배치 삽입
+                        execute_values(cursor, insert_sql, data_tuples, page_size=50)
+                        total_inserted += len(data_tuples)
                     
                     # 진행률 표시 (더 자주)
                     if i % 10 == 0:  # 10청크마다 진행률 표시
-                        logger.info(f"처리 중... 청크 {i+1}, 총 삽입: {total_inserted}개 행, 고유 ID: {len(processed_ids)}개, 건너뜀: {skipped_rows}개")
+                        # 파일 크기 기반 대략적 진행률 (정확하지 않지만 참고용)
+                        estimated_progress = min(100.0, (file_size * (i + 1) / (file_size * 1.2)) * 100)
+                        logger.info(f"처리 중... 청크 {i+1}, 총 삽입: {total_inserted}개 행, 고유 ID: {len(processed_ids)}개")
                         
                         # 커밋도 더 자주
                         conn.commit()
@@ -267,7 +184,7 @@ def process_large_file_direct_to_db(file_path, conn, today):
                 
                 # 최종 커밋
                 conn.commit()
-                logger.info(f"최종 완료: 총 {total_inserted}개 행 삽입, 총 {total_chunks_processed}개 청크 처리됨, 고유 ID: {len(processed_ids)}개, 건너뜀: {skipped_rows}개")
+                logger.info(f"최종 완료: 총 {total_inserted}개 행 삽입, 총 {total_chunks_processed}개 청크 처리됨, 고유 ID: {len(processed_ids)}개")
                 
             except Exception as e:
                 logger.warning(f"데이터 처리 중 일부 오류 발생: {e}, 현재까지 {total_inserted}개 행 삽입됨")
