@@ -112,10 +112,10 @@ frma                            France - Marseille
 (내부서버) ----------------------------
 
 192.168.1.99 // kiyoungfnb // wjsfir1234!@
-192.168.1.124 // kiyoung1 : 배민(도쿄)
-192.168.1.127 // kiyoung4 : 배민(시부야)
-192.168.1.125 // kiyoung : 쿠팡(한국2)
-192.168.1.126 // kiyoung3 : 쿠팡(한국2)
+192.168.1.125 // kiyoung : 배민(도쿄)
+192.168.1.126 // kiyoung3 : 배민(시부야)
+192.168.1.124 // kiyoung1 : 쿠팡(한국2)
+192.168.1.127 // kiyoung4 : 쿠팡(한국2)
 
 # 1. 네트워크 드라이브 Y: 연결
 net use Y: \\192.168.1.99\ShareFolder /user:kiyoungfnb wjsfir1234!@ /persistent:yes
