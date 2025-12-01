@@ -137,9 +137,15 @@ sudo /opt/expressvpn/bin/expressvpnctl -h
 sudo /opt/expressvpn/bin/expressvpnctl get regions
 sudo /opt/expressvpn/bin/expressvpnctl background enable
 
+# 쿠팡 가능
 sudo /opt/expressvpn/bin/expressvpnctl connect south-korea-2
+sudo /opt/expressvpn/bin/expressvpnctl connect uk-london
+sudo /opt/expressvpn/bin/expressvpnctl connect uk-midlands
+
+# 배민 가능
 sudo /opt/expressvpn/bin/expressvpnctl connect japan-shibuya
 sudo /opt/expressvpn/bin/expressvpnctl connect japan-tokyo
+sudo /opt/expressvpn/bin/expressvpnctl connect japan-osaka
 
 expressvpnctl connect japan-osaka
 hostname -I && curl ifconfig.me
