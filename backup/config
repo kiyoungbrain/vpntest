@@ -20,7 +20,12 @@ ssh root@115.68.176.241
 
 wjsfir1234!@#
 
-watch -n 2 ls -al
+cd /home/vpnN
+source venv/bin/activate
+test1_1.py --mode x
+
+watch -n 2 "ls -al | grep '^-'"
+
 
 # python3 test.py --mode 0
 # python3 test.py --mode 1
@@ -70,52 +75,52 @@ expressvpn connect kr2
 Recommended Locations:
 ALIAS   COUNTRY                 LOCATION
 -----   ---------------         ------------------------------
-smart   Smart Location          Japan - Shibuya
+# smart   Smart Location          Japan - Shibuya
 jpsh    Japan (JP)              Japan - Shibuya
 jpto                            Japan - Tokyo
 jpos                            Japan - Osaka
-usla1   United States (US)      USA - Los Angeles - 1
-usla2                           USA - Los Angeles - 2
-usla3                           USA - Los Angeles - 3
-ussf                            USA - San Francisco
-usse                            USA - Seattle
-usph                            USA - Phoenix
-usde                            USA - Denver
-sgju    Singapore (SG)          Singapore - Jurong
+# usla1   United States (US)      USA - Los Angeles - 1
+# usla2                           USA - Los Angeles - 2
+# usla3                           USA - Los Angeles - 3
+# ussf                            USA - San Francisco
+# usse                            USA - Seattle
+# usph                            USA - Phoenix
+# usde                            USA - Denver
+# sgju    Singapore (SG)          Singapore - Jurong
 sgcb                            Singapore - CBD
 hk1     Hong Kong (HK)          Hong Kong - 1
 hk2                             Hong Kong - 2
 kr2     South Korea (KR)        South Korea - 2
-ausy    Australia (AU)          Australia - Sydney
-aume                            Australia - Melbourne
-auwo                            Australia - Woolloomooloo
-aubr                            Australia - Brisbane
-aupe                            Australia - Perth
-auad                            Australia - Adelaide
-ukel    United Kingdom (GB)     UK - East London
-ukto                            UK - Tottenham
-ukdo                            UK - Docklands
-uklo                            UK - London
-ukmi                            UK - Midlands
-cato2   Canada (CA)             Canada - Toronto - 2
-cato                            Canada - Toronto
-nz      New Zealand (NZ)        New Zealand
+# ausy    Australia (AU)          Australia - Sydney
+# aume                            Australia - Melbourne
+# auwo                            Australia - Woolloomooloo
+# aubr                            Australia - Brisbane
+# aupe                            Australia - Perth
+# auad                            Australia - Adelaide
+# ukel    United Kingdom (GB)     UK - East London
+# ukto                            UK - Tottenham
+# ukdo                            UK - Docklands
+# uklo                            UK - London
+# ukmi                            UK - Midlands
+# cato2   Canada (CA)             Canada - Toronto - 2
+# cato                            Canada - Toronto
+# nz      New Zealand (NZ)        New Zealand
 gu      Guam (GU)               Guam
-br      Brazil (BR)             Brazil
-defr3   Germany (DE)            Germany - Frankfurt - 3
-denu                            Germany - Nuremberg
-defr1                           Germany - Frankfurt - 1
-frpa2   France (FR)             France - Paris - 2
-frma                            France - Marseille
+# br      Brazil (BR)             Brazil
+# defr3   Germany (DE)            Germany - Frankfurt - 3
+# denu                            Germany - Nuremberg
+# defr1                           Germany - Frankfurt - 1
+# frpa2   France (FR)             France - Paris - 2
+# frma                            France - Marseille
 
 
 (내부서버) ----------------------------
 
 192.168.1.99 // kiyoungfnb // wjsfir1234!@
-192.168.1.125 // kiyoung : 배민(도쿄)
-192.168.1.126 // kiyoung3 : 배민(시부야)v
-192.168.1.124 // kiyoung1 : 쿠팡(한국2)
-192.168.1.127 // kiyoung4 : 쿠팡(한국2)v
+192.168.1.124 // kiyoung124 : 대기
+192.168.1.125 // kiyoung125 : 네이버(테스트)
+192.168.1.126 // kiyoung126 : 배민(일본)
+192.168.1.127 // kiyoung127 : 쿠팡(한국2or런던)
 
 # 1. 네트워크 드라이브 Y: 연결
 net use Y: \\192.168.1.99\ShareFolder /user:kiyoungfnb wjsfir1234!@ /persistent:yes
@@ -178,7 +183,7 @@ sudo apt install sshfs -y
 mkdir -p /mnt/server99_share
 
 sshfs kiyoungfnb@192.168.1.99:/home/kiyoungfnb/share /mnt/server99_share
-cd /mnt/server99_share/
+cd /mnt/server99_share/한기정/code
 
 마운트해제(필요시)
 fusermount -u /mnt/server99_share
