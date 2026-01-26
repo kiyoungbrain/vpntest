@@ -1,0 +1,19 @@
+
+(내부서버) ----------------------------
+
+ssh kiyoungfnb@192.168.1.99     // 내부 서버
+ssh kiyoung126@192.168.1.126    // 배민 수집
+ssh kiyoung127@192.168.1.127    // 쿠팡 수집
+
+--------------------------------------
+
+su
+
+source venv/bin/activate
+
+--------------------------------------
+
+# 1. 네트워크 드라이브 Y: 연결
+sshfs kiyoungfnb@192.168.1.99:/home/kiyoungfnb/share /mnt/server99_share
+
+cd /mnt/server99_share/한기정/code/20260120_배민_쿠팡_오픈_미판매_완자동
